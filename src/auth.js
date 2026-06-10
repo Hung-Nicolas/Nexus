@@ -15,52 +15,53 @@ function notify(estado, perfil) {
   _callbacks.forEach(cb => cb(estado, perfil));
 }
 
-async function cargarPerfil(userId) {
-  const { data, error } = await supabase
-    .from('perfiles')
-    .select('*')
-    .eq('id', userId)
-    .single();
-
-  // Si la tabla no existe (404), dejamos entrar igual con datos básicos de auth
-  if (error && error.code === 'PGRST116') {
-    // PGRST116 = no rows found, pero la tabla existe
-    _perfil = null;
-    notify('signed_out', null);
-    return;
-  }
-
-  if (error && error.message?.includes('404')) {
-    console.warn('[Nexus] Tabla perfiles no encontrada. Ejecutá migracion_auth.sql en Supabase.');
-    // Modo degradado: usar datos de auth.users directamente
-    _perfil = {
-      id: userId,
-      email: 'usuario@nexus.com',
-      nombre: 'Usuario',
-      apellido: 'Sin Perfil',
-      rol: 'regente',
-      activo: true,
-    };
-    notify('signed_in', _perfil);
-    return;
-  }
-
-  if (!data) {
-    _perfil = null;
-    notify('signed_out', null);
-    return;
-  }
-
-  _perfil = {
-    id: data.id,
-    email: data.email,
-    nombre: data.nombre,
-    apellido: data.apellido,
-    rol: data.rol,
-    activo: data.activo,
+function perfilFallback(user) {
+  return {
+    id: user.id,
+    email: user.email || 'usuario@nexus.com',
+    nombre: user.user_metadata?.nombre || user.email?.split('@')[0] || 'Usuario',
+    apellido: user.user_metadata?.apellido || 'Sin Perfil',
+    rol: 'regente',
+    activo: true,
   };
+}
 
-  notify('signed_in', _perfil);
+async function cargarPerfil(user) {
+  try {
+    const { data, error } = await supabase
+      .from('perfiles')
+      .select('*')
+      .eq('id', user.id)
+      .single();
+
+    if (error) {
+      console.warn('[Nexus] No se pudo cargar el perfil:', error.message);
+      _perfil = perfilFallback(user);
+      notify('signed_in', _perfil);
+      return;
+    }
+
+    if (!data) {
+      _perfil = perfilFallback(user);
+      notify('signed_in', _perfil);
+      return;
+    }
+
+    _perfil = {
+      id: data.id,
+      email: data.email,
+      nombre: data.nombre,
+      apellido: data.apellido,
+      rol: data.rol,
+      activo: data.activo,
+    };
+
+    notify('signed_in', _perfil);
+  } catch (err) {
+    console.warn('[Nexus] Error inesperado cargando perfil:', err);
+    _perfil = perfilFallback(user);
+    notify('signed_in', _perfil);
+  }
 }
 
 // ========== AUTH BASICO ==========
@@ -75,7 +76,7 @@ export async function iniciarSesion(email, password) {
   const { data, error } = await Promise.race([authPromise, timeoutPromise]);
 
   if (error) throw error;
-  await cargarPerfil(data.user.id);
+  await cargarPerfil(data.user);
   return _perfil;
 }
 
@@ -91,13 +92,13 @@ export async function restaurarSesion() {
     notify('signed_out', null);
     return null;
   }
-  await cargarPerfil(session.user.id);
+  await cargarPerfil(session.user);
   return _perfil;
 }
 
 supabase.auth.onAuthStateChange(async (event, session) => {
   if (event === 'SIGNED_IN' && session?.user) {
-    await cargarPerfil(session.user.id);
+    await cargarPerfil(session.user);
   } else if (event === 'SIGNED_OUT') {
     _perfil = null;
     notify('signed_out', null);
