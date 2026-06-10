@@ -22,7 +22,30 @@ async function cargarPerfil(userId) {
     .eq('id', userId)
     .single();
 
-  if (error || !data) {
+  // Si la tabla no existe (404), dejamos entrar igual con datos básicos de auth
+  if (error && error.code === 'PGRST116') {
+    // PGRST116 = no rows found, pero la tabla existe
+    _perfil = null;
+    notify('signed_out', null);
+    return;
+  }
+
+  if (error && error.message?.includes('404')) {
+    console.warn('[Nexus] Tabla perfiles no encontrada. Ejecutá migracion_auth.sql en Supabase.');
+    // Modo degradado: usar datos de auth.users directamente
+    _perfil = {
+      id: userId,
+      email: 'usuario@nexus.com',
+      nombre: 'Usuario',
+      apellido: 'Sin Perfil',
+      rol: 'regente',
+      activo: true,
+    };
+    notify('signed_in', _perfil);
+    return;
+  }
+
+  if (!data) {
     _perfil = null;
     notify('signed_out', null);
     return;
