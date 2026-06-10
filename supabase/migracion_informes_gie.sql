@@ -78,6 +78,9 @@ BEGIN
     END IF;
 END $$;
 
+-- Quitar NOT NULL de observacion (ahora resumen es el campo principal)
+ALTER TABLE public.informes ALTER COLUMN observacion DROP NOT NULL;
+
 -- 3. INDICES NUEVOS
 CREATE INDEX IF NOT EXISTS idx_informes_estado ON public.informes(estado);
 CREATE INDEX IF NOT EXISTS idx_informes_categoria ON public.informes(id_categoria);
