@@ -1,15 +1,15 @@
 -- ============================================================
--- NEXUS - Sistema de usuarios y autenticación
--- Agrega tabla perfiles vinculada a auth.users de Supabase
+-- NEXUS - Sistema de usuarios (cerrado, solo regentes)
 -- ============================================================
 
 -- Tabla de perfiles de usuario (vinculada 1:1 con auth.users)
+-- Solo existe el rol 'regente' porque el sistema es cerrado
 CREATE TABLE IF NOT EXISTS public.perfiles (
     id UUID REFERENCES auth.users ON DELETE CASCADE PRIMARY KEY,
     email TEXT UNIQUE NOT NULL,
     nombre TEXT NOT NULL,
     apellido TEXT NOT NULL,
-    rol TEXT NOT NULL DEFAULT 'viewer' CHECK (rol IN ('admin', 'viewer')),
+    rol TEXT NOT NULL DEFAULT 'regente' CHECK (rol = 'regente'),
     activo BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now())
 );
@@ -29,12 +29,12 @@ CREATE POLICY "perfiles_insert_trigger"
     TO anon, authenticated
     WITH CHECK (TRUE);
 
-DROP POLICY IF EXISTS "perfiles_update_own" ON public.perfiles;
-CREATE POLICY "perfiles_update_own"
+DROP POLICY IF EXISTS "perfiles_update_regente" ON public.perfiles;
+CREATE POLICY "perfiles_update_regente"
     ON public.perfiles FOR UPDATE
     TO authenticated
-    USING (id = auth.uid() OR (SELECT rol FROM public.perfiles WHERE id = auth.uid()) = 'admin')
-    WITH CHECK (id = auth.uid() OR (SELECT rol FROM public.perfiles WHERE id = auth.uid()) = 'admin');
+    USING (TRUE)
+    WITH CHECK (TRUE);
 
 -- Trigger: crear perfil automáticamente al registrar usuario
 CREATE OR REPLACE FUNCTION public.handle_new_user()
@@ -44,9 +44,9 @@ BEGIN
     VALUES (
         new.id,
         new.email,
-        COALESCE(new.raw_user_meta_data->>'nombre', 'Usuario'),
-        COALESCE(new.raw_user_meta_data->>'apellido', 'Nuevo'),
-        COALESCE(new.raw_user_meta_data->>'rol', 'viewer'),
+        COALESCE(new.raw_user_meta_data->>'nombre', 'Sin'),
+        COALESCE(new.raw_user_meta_data->>'apellido', 'Nombre'),
+        'regente',
         TRUE
     )
     ON CONFLICT (id) DO NOTHING;
@@ -54,7 +54,6 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Crear trigger si no existe
 DO $$
 BEGIN
     IF NOT EXISTS (
@@ -69,13 +68,119 @@ END
 $$;
 
 -- ============================================================
+-- FUNCIONES RPC (solo para regentes)
+-- ============================================================
+
+-- Listar todos los usuarios (auth.users + perfiles)
+DROP FUNCTION IF EXISTS public.listar_usuarios_completos();
+CREATE OR REPLACE FUNCTION public.listar_usuarios_completos()
+RETURNS TABLE(
+    id UUID,
+    email TEXT,
+    created_at TIMESTAMPTZ,
+    nombre TEXT,
+    apellido TEXT,
+    rol TEXT,
+    activo BOOLEAN,
+    tiene_perfil BOOLEAN
+)
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT
+    u.id,
+    u.email,
+    u.created_at,
+    COALESCE(p.nombre, 'Sin')::TEXT as nombre,
+    COALESCE(p.apellido, 'Nombre')::TEXT as apellido,
+    COALESCE(p.rol, 'regente')::TEXT as rol,
+    COALESCE(p.activo, true)::BOOLEAN as activo,
+    (p.id IS NOT NULL)::BOOLEAN as tiene_perfil
+  FROM auth.users u
+  LEFT JOIN public.perfiles p ON u.id = p.id
+  ORDER BY u.created_at DESC;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.listar_usuarios_completos() TO authenticated;
+
+-- Sincronizar perfil para usuario que no lo tiene
+DROP FUNCTION IF EXISTS public.sincronizar_perfil(UUID, TEXT, TEXT, TEXT, TEXT, BOOLEAN);
+CREATE OR REPLACE FUNCTION public.sincronizar_perfil(
+    p_id UUID,
+    p_email TEXT,
+    p_nombre TEXT DEFAULT 'Sin',
+    p_apellido TEXT DEFAULT 'Nombre',
+    p_rol TEXT DEFAULT 'regente',
+    p_activo BOOLEAN DEFAULT true
+)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+    INSERT INTO public.perfiles (id, email, nombre, apellido, rol, activo)
+    VALUES (p_id, p_email, p_nombre, p_apellido, p_rol, p_activo)
+    ON CONFLICT (id) DO UPDATE SET
+        nombre = EXCLUDED.nombre,
+        apellido = EXCLUDED.apellido,
+        email = EXCLUDED.email,
+        rol = EXCLUDED.rol,
+        activo = EXCLUDED.activo;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.sincronizar_perfil(UUID, TEXT, TEXT, TEXT, TEXT, BOOLEAN) TO authenticated;
+
+-- Eliminar usuario completamente (auth.users + perfiles via CASCADE)
+DROP FUNCTION IF EXISTS public.eliminar_usuario_completo(UUID);
+CREATE OR REPLACE FUNCTION public.eliminar_usuario_completo(user_id UUID)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+    -- No permitir eliminar el propio usuario
+    IF user_id = auth.uid() THEN
+        RAISE EXCEPTION 'No podés eliminar tu propio usuario';
+    END IF;
+
+    -- Eliminar de auth.users (perfiles se elimina por ON DELETE CASCADE)
+    DELETE FROM auth.users WHERE id = user_id;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.eliminar_usuario_completo(UUID) TO authenticated;
+
+-- Cambiar contraseña de cualquier usuario (solo regente)
+DROP FUNCTION IF EXISTS public.actualizar_password_usuario(UUID, TEXT);
+CREATE OR REPLACE FUNCTION public.actualizar_password_usuario(user_id UUID, new_password TEXT)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+    -- No permitir cambiar la propia contraseña por este medio (usar Auth de Supabase)
+    IF user_id = auth.uid() THEN
+        RAISE EXCEPTION 'Usá tu perfil para cambiar tu propia contraseña';
+    END IF;
+
+    UPDATE auth.users SET encrypted_password = crypt(new_password, gen_salt('bf')) WHERE id = user_id;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.actualizar_password_usuario(UUID, TEXT) TO authenticated;
+
+-- ============================================================
 -- NOTA: Configuración recomendada en Supabase Dashboard
 -- ============================================================
 -- 1. Authentication → Providers → Email → Desactivar "Confirm email"
---    (para facilitar registro de usuarios sin verificación)
--- 2. Authentication → URL Configuration → Site URL:
---    http://localhost:5173 (desarrollo) o tu dominio (prod)
+--    (para que el regente cree usuarios sin verificación)
+-- 2. Authentication → URL Configuration → Site URL: tu dominio
 --
--- Para crear el primer usuario admin, registrarse vía la app
--- y luego ejecutar:
--- UPDATE public.perfiles SET rol = 'admin' WHERE email = 'tu-email';
+-- El primer usuario debe crearse directamente desde Auth → Users
+-- o ejecutando signUp desde la consola. Luego ese usuario
+-- administra el resto desde la sección "Usuarios" de la app.

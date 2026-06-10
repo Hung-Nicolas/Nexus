@@ -1,21 +1,22 @@
 import { supabase } from './lib/supabase.js';
-import { iniciarSesion, registrarUsuario, cerrarSesion, restaurarSesion, getPerfil, onAuthChange } from './auth.js';
+import { iniciarSesion, cerrarSesion, restaurarSesion, getPerfil, onAuthChange, listarUsuarios, crearUsuario, eliminarUsuario, cambiarPasswordUsuario } from './auth.js';
 import './styles.css';
 
 // Estado
 let tablaActual = 'alumnos';
+let seccionActual = 'buscador';
 let timeoutBusqueda = null;
 let filtrosActuales = {};
 let opcionesFiltros = {};
+let usuariosLista = [];
+let mostrarFormUsuario = false;
 
 // Referencias DOM
 const loginScreen = document.getElementById('loginScreen');
 const appContainer = document.getElementById('appContainer');
 const loginForm = document.getElementById('loginForm');
-const registerForm = document.getElementById('registerForm');
 const loginError = document.getElementById('loginError');
 const loginBtnText = document.getElementById('loginBtnText');
-const regBtnText = document.getElementById('regBtnText');
 const sidebar = document.getElementById('sidebar');
 const sidebarOverlay = document.getElementById('sidebarOverlay');
 const openSidebarBtn = document.getElementById('openSidebar');
@@ -32,6 +33,14 @@ const resultsTitle = document.getElementById('resultsTitle');
 const resultsCount = document.getElementById('resultsCount');
 const statsGrid = document.getElementById('statsGrid');
 const sidebarLinks = document.querySelectorAll('.nx-sidebar-link');
+const sectionBuscador = document.getElementById('sectionBuscador');
+const sectionUsuarios = document.getElementById('sectionUsuarios');
+const btnNuevoUsuario = document.getElementById('btnNuevoUsuario');
+const formUsuarioContainer = document.getElementById('formUsuarioContainer');
+const btnGuardarUsuario = document.getElementById('btnGuardarUsuario');
+const btnCancelarUsuario = document.getElementById('btnCancelarUsuario');
+const usuarioError = document.getElementById('usuarioError');
+const usuariosGrid = document.getElementById('usuariosGrid');
 
 // Configuración por tabla
 const configTablas = {
@@ -164,17 +173,14 @@ function showApp() {
 }
 
 function updateUserUI(perfil) {
-  if (!perfil) {
-    sidebarUser.style.display = 'none';
-    return;
-  }
+  if (!perfil) { sidebarUser.style.display = 'none'; return; }
   sidebarUser.style.display = 'flex';
   userAvatar.textContent = `${perfil.nombre?.[0] || ''}${perfil.apellido?.[0] || ''}`;
   userName.textContent = `${perfil.apellido}, ${perfil.nombre}`;
-  userRole.textContent = perfil.rol || 'viewer';
+  userRole.textContent = 'Regente';
 }
 
-// Login form
+// Login
 loginForm.addEventListener('submit', async (e) => {
   e.preventDefault();
   const email = document.getElementById('loginEmail').value.trim();
@@ -192,41 +198,12 @@ loginForm.addEventListener('submit', async (e) => {
   }
 });
 
-// Register form
-registerForm.addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const email = document.getElementById('regEmail').value.trim();
-  const password = document.getElementById('regPassword').value;
-  const nombre = document.getElementById('regNombre').value.trim();
-  const apellido = document.getElementById('regApellido').value.trim();
-  regBtnText.textContent = 'Creando...';
-  loginError.classList.remove('show');
-
-  try {
-    await registrarUsuario(email, password, nombre, apellido);
-    regBtnText.textContent = 'Crear cuenta';
-    loginError.textContent = 'Cuenta creada. Revisá tu email para confirmar (si está activado) o ingresá directamente.';
-    loginError.style.color = '#4ade80';
-    loginError.style.borderColor = 'rgba(74,222,128,0.2)';
-    loginError.style.background = 'rgba(74,222,128,0.08)';
-    loginError.classList.add('show');
-    registerForm.reset();
-  } catch (err) {
-    regBtnText.textContent = 'Crear cuenta';
-    loginError.textContent = err.message || 'Error al registrar';
-    loginError.style.color = '';
-    loginError.style.borderColor = '';
-    loginError.style.background = '';
-    loginError.classList.add('show');
-  }
-});
-
 // Logout
 logoutBtn.addEventListener('click', async () => {
   await cerrarSesion();
 });
 
-// Auth state handler
+// Auth state
 onAuthChange((estado, perfil) => {
   if (estado === 'signed_in' && perfil) {
     showApp();
@@ -238,25 +215,42 @@ onAuthChange((estado, perfil) => {
   }
 });
 
-// ========== APP LOGIC ==========
-// Sidebar mobile
+// ========== NAVIGACION SECCIONES ==========
+function mostrarSeccion(seccion) {
+  seccionActual = seccion;
+  if (seccion === 'buscador') {
+    sectionBuscador.classList.remove('hidden');
+    sectionUsuarios.classList.add('hidden');
+    sidebarFilters.style.display = '';
+  } else if (seccion === 'usuarios') {
+    sectionBuscador.classList.add('hidden');
+    sectionUsuarios.classList.remove('hidden');
+    sidebarFilters.style.display = 'none';
+    cargarUsuarios();
+  }
+  sidebarLinks.forEach(link => {
+    const esActivo = link.dataset.table === seccion || link.dataset.section === seccion;
+    link.classList.toggle('active', esActivo);
+  });
+  if (window.innerWidth <= 1024) closeSidebar();
+}
+
+// ========== SIDEBAR MOBILE ==========
 function openSidebar() {
   sidebar.classList.add('open');
   sidebarOverlay.classList.add('show');
   document.body.style.overflow = 'hidden';
 }
-
 function closeSidebar() {
   sidebar.classList.remove('open');
   sidebarOverlay.classList.remove('show');
   document.body.style.overflow = '';
 }
-
 openSidebarBtn?.addEventListener('click', openSidebar);
 closeSidebarBtn?.addEventListener('click', closeSidebar);
 sidebarOverlay?.addEventListener('click', closeSidebar);
 
-// Stats
+// ========== STATS ==========
 async function cargarStats() {
   try {
     const [alumnos, personal, cursos, materias] = await Promise.all([
@@ -266,25 +260,23 @@ async function cargarStats() {
       supabase.from('materias').select('id_materia', { count: 'exact', head: true }),
     ]);
 
-    const data = [
+    statsGrid.innerHTML = [
       { label: 'Alumnos activos', value: alumnos.count || 0 },
       { label: 'Personal activo', value: personal.count || 0 },
       { label: 'Cursos', value: cursos.count || 0 },
       { label: 'Materias', value: materias.count || 0 },
-    ];
-
-    statsGrid.innerHTML = data.map(s => `
+    ].map(s => `
       <div class="nx-stat">
         <div class="nx-stat-value">${s.value}</div>
         <div class="nx-stat-label">${s.label}</div>
       </div>
     `).join('');
   } catch (err) {
-    console.error('[Nexus] Error cargando stats:', err);
+    console.error('[Nexus] Error stats:', err);
   }
 }
 
-// Cargar opciones de filtros dinámicas desde la BD
+// ========== FILTROS ==========
 async function cargarOpcionesFiltros() {
   try {
     const { data: espAlumnos } = await supabase.from('alumnos').select('especialidad').not('especialidad', 'is', null);
@@ -299,11 +291,10 @@ async function cargarOpcionesFiltros() {
     const { data: aniosCursos } = await supabase.from('cursos').select('anio').order('anio');
     opcionesFiltros['cursos.anio'] = [...new Set((aniosCursos || []).map(c => c.anio).filter(Boolean))].sort((a, b) => a - b).map(String);
   } catch (err) {
-    console.error('[Nexus] Error cargando opciones de filtros:', err);
+    console.error('[Nexus] Error filtros:', err);
   }
 }
 
-// Renderizar filtros del sidebar
 function renderizarFiltros() {
   const config = configTablas[tablaActual];
   sidebarFilters.innerHTML = '';
@@ -393,7 +384,7 @@ function renderizarFiltros() {
   }
 }
 
-// Búsqueda
+// ========== BUSQUEDA ==========
 async function buscar(query) {
   const config = configTablas[tablaActual];
   resultsTitle.textContent = config.titulo;
@@ -415,10 +406,8 @@ async function buscar(query) {
       .order(config.orden.column, { ascending: config.orden.ascending })
       .limit(50);
 
-    // Filtro de búsqueda texto
     if (termino && termino.length >= 1) {
       const esNumero = /^\d+$/.test(termino);
-
       if (esNumero) {
         const num = parseInt(termino, 10);
         if (tablaActual === 'alumnos' || tablaActual === 'personal') {
@@ -427,36 +416,24 @@ async function buscar(query) {
           supaQuery = supaQuery.or(`anio.eq.${num}`);
         }
       }
-
       if (config.buscarEn.length > 0) {
-        const terminoEscapado = termino
-          .replace(/\\/g, '\\\\')
-          .replace(/%/g, '\\%')
-          .replace(/_/g, '\\_');
-        const filtros = config.buscarEn
-          .map(campo => `${campo}.ilike.%${terminoEscapado}%`)
-          .join(',');
+        const terminoEscapado = termino.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
+        const filtros = config.buscarEn.map(campo => `${campo}.ilike.%${terminoEscapado}%`).join(',');
         supaQuery = supaQuery.or(filtros);
       }
     }
 
-    // Aplicar filtros del sidebar
     Object.entries(filtrosActuales).forEach(([key, value]) => {
       if (value === undefined || value === '') return;
-      if (key === 'activo') {
-        supaQuery = supaQuery.eq(key, value === 'true');
-      } else {
-        supaQuery = supaQuery.eq(key, value);
-      }
+      if (key === 'activo') supaQuery = supaQuery.eq(key, value === 'true');
+      else supaQuery = supaQuery.eq(key, value);
     });
 
-    // Por defecto solo activos en alumnos/personal
     if ((tablaActual === 'alumnos' || tablaActual === 'personal') && !filtrosActuales.activo) {
       supaQuery = supaQuery.eq('activo', true);
     }
 
     const { data, error } = await supaQuery;
-
     if (error) throw error;
 
     resultsCount.textContent = `${data?.length || 0} resultado${data?.length !== 1 ? 's' : ''}`;
@@ -464,12 +441,9 @@ async function buscar(query) {
     if (!data || data.length === 0) {
       resultsGrid.innerHTML = `
         <div class="nx-empty">
-          <div class="nx-empty-icon">
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-          </div>
+          <div class="nx-empty-icon"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></div>
           <p class="nx-empty-text">${termino ? `No se encontraron resultados para "${escapeHtml(termino)}"` : 'No hay registros para mostrar'}</p>
-        </div>
-      `;
+        </div>`;
       return;
     }
 
@@ -477,10 +451,9 @@ async function buscar(query) {
       const rendered = config.render(row);
       const meta = rendered.meta.map(m => `<span>${escapeHtml(m)}</span>`).join(' · ');
       const tags = rendered.tags.map(t => {
-        const styleClass = t.style === 'purple' ? 'nx-card-tag-purple' : t.style === 'amber' ? 'nx-card-tag-amber' : '';
-        return `<span class="nx-card-tag ${styleClass}">${escapeHtml(t.text)}</span>`;
+        const sc = t.style === 'purple' ? 'nx-card-tag-purple' : t.style === 'amber' ? 'nx-card-tag-amber' : '';
+        return `<span class="nx-card-tag ${sc}">${escapeHtml(t.text)}</span>`;
       }).join('');
-
       return `
         <div class="nx-card">
           <div class="nx-card-avatar">${escapeHtml(rendered.avatar)}</div>
@@ -489,20 +462,16 @@ async function buscar(query) {
             <div class="nx-card-meta">${meta}</div>
             ${tags ? `<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;">${tags}</div>` : ''}
           </div>
-        </div>
-      `;
+        </div>`;
     }).join('');
   } catch (err) {
-    console.error('[Nexus] Error en búsqueda:', err);
-    mostrarToast('Error al cargar datos. Revisá la consola.', 'error');
+    console.error('[Nexus] Error:', err);
+    mostrarToast('Error al cargar datos.', 'error');
     resultsGrid.innerHTML = `
       <div class="nx-empty">
-        <div class="nx-empty-icon" style="color:#ef4444">
-          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
-        </div>
-        <p class="nx-empty-text">Error de conexión con la base de datos</p>
-      </div>
-    `;
+        <div class="nx-empty-icon" style="color:#ef4444"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg></div>
+        <p class="nx-empty-text">Error de conexión</p>
+      </div>`;
   }
 }
 
@@ -510,11 +479,6 @@ async function buscar(query) {
 function cambiarTabla(nuevaTabla) {
   tablaActual = nuevaTabla;
   filtrosActuales = {};
-
-  sidebarLinks.forEach(link => {
-    link.classList.toggle('active', link.dataset.table === nuevaTabla);
-  });
-
   const placeholders = {
     alumnos: 'Buscar por nombre, apellido, DNI, email...',
     personal: 'Buscar por nombre, apellido, rol, email...',
@@ -522,18 +486,19 @@ function cambiarTabla(nuevaTabla) {
     materias: 'Buscar por nombre o descripción...',
   };
   searchInput.placeholder = placeholders[tablaActual];
-
   renderizarFiltros();
   buscar('');
-
-  if (window.innerWidth <= 1024) {
-    closeSidebar();
-  }
 }
 
-// Event Listeners
 sidebarLinks.forEach(link => {
-  link.addEventListener('click', () => cambiarTabla(link.dataset.table));
+  link.addEventListener('click', () => {
+    if (link.dataset.table) {
+      mostrarSeccion('buscador');
+      cambiarTabla(link.dataset.table);
+    } else if (link.dataset.section) {
+      mostrarSeccion(link.dataset.section);
+    }
+  });
 });
 
 searchInput.addEventListener('input', (e) => {
@@ -542,22 +507,137 @@ searchInput.addEventListener('input', (e) => {
 });
 
 searchInput.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') {
-    searchInput.value = '';
-    buscar('');
-    searchInput.blur();
+  if (e.key === 'Escape') { searchInput.value = ''; buscar(''); searchInput.blur(); }
+});
+
+// ========== USUARIOS ==========
+async function cargarUsuarios() {
+  usuariosGrid.innerHTML = `
+    <div class="nx-empty">
+      <div class="nx-empty-icon" style="animation: nx-pulse 1.5s infinite;"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></div>
+      <p class="nx-empty-text">Cargando usuarios...</p>
+    </div>`;
+
+  try {
+    const { data, error } = await listarUsuarios();
+    if (error) throw error;
+    usuariosLista = data || [];
+
+    if (usuariosLista.length === 0) {
+      usuariosGrid.innerHTML = `<div class="nx-empty"><div class="nx-empty-icon"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></div><p class="nx-empty-text">No hay usuarios registrados</p></div>`;
+      return;
+    }
+
+    usuariosGrid.innerHTML = `
+      <div style="overflow-x: auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+          <thead>
+            <tr style="border-bottom: 1px solid var(--nx-border); color: var(--nx-text-dim); text-align: left;">
+              <th style="padding: 10px 12px;">Usuario</th>
+              <th style="padding: 10px 12px;">Email</th>
+              <th style="padding: 10px 12px;">Rol</th>
+              <th style="padding: 10px 12px;">Estado</th>
+              <th style="padding: 10px 12px; text-align: right;">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${usuariosLista.map(u => `
+              <tr style="border-bottom: 1px solid var(--nx-border); transition: background 0.15s;" onmouseover="this.style.background='rgba(148,163,184,0.04)'" onmouseout="this.style.background=''">
+                <td style="padding: 12px;">
+                  <div style="display:flex;align-items:center;gap:10px;">
+                    <div class="nx-card-avatar" style="width:32px;height:32px;font-size:12px;">${u.nombre?.[0] || ''}${u.apellido?.[0] || ''}</div>
+                    <span style="color:var(--nx-text);font-weight:500;">${escapeHtml(u.apellido)}, ${escapeHtml(u.nombre)}</span>
+                  </div>
+                </td>
+                <td style="padding: 12px; color: var(--nx-text-muted);">${escapeHtml(u.email)}</td>
+                <td style="padding: 12px;"><span class="nx-card-tag">${escapeHtml(capitalizar(u.rol))}</span></td>
+                <td style="padding: 12px;">${u.activo !== false ? '<span style="color:#4ade80;font-size:12px;">● Activo</span>' : '<span style="color:#ef4444;font-size:12px;">● Inactivo</span>'}</td>
+                <td style="padding: 12px; text-align: right;">
+                  ${u.id !== getPerfil()?.id ? `
+                    <button class="nx-filter-reset" style="color:#f87171;" onclick="eliminarUsuarioHandler('${u.id}')">Eliminar</button>
+                  ` : '<span style="color:var(--nx-text-dim);font-size:12px;">Vos</span>'}
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>`;
+  } catch (err) {
+    console.error('[Nexus] Error usuarios:', err);
+    usuariosGrid.innerHTML = `<div class="nx-empty"><div class="nx-empty-icon" style="color:#ef4444"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg></div><p class="nx-empty-text">Error al cargar usuarios</p></div>`;
+  }
+}
+
+// Crear usuario
+btnNuevoUsuario.addEventListener('click', () => {
+  mostrarFormUsuario = !mostrarFormUsuario;
+  formUsuarioContainer.classList.toggle('hidden', !mostrarFormUsuario);
+  usuarioError.classList.remove('show');
+});
+
+btnCancelarUsuario.addEventListener('click', () => {
+  mostrarFormUsuario = false;
+  formUsuarioContainer.classList.add('hidden');
+  usuarioError.classList.remove('show');
+});
+
+btnGuardarUsuario.addEventListener('click', async () => {
+  const nombre = document.getElementById('newNombre').value.trim();
+  const apellido = document.getElementById('newApellido').value.trim();
+  const email = document.getElementById('newEmail').value.trim();
+  const password = document.getElementById('newPassword').value;
+
+  if (!nombre || !apellido || !email || !password) {
+    usuarioError.textContent = 'Completá todos los campos';
+    usuarioError.classList.add('show');
+    return;
+  }
+  if (password.length < 6) {
+    usuarioError.textContent = 'La contraseña debe tener al menos 6 caracteres';
+    usuarioError.classList.add('show');
+    return;
+  }
+
+  btnGuardarUsuario.textContent = 'Creando...';
+  try {
+    await crearUsuario(email, password, nombre, apellido);
+    mostrarToast('Usuario creado correctamente');
+    document.getElementById('newNombre').value = '';
+    document.getElementById('newApellido').value = '';
+    document.getElementById('newEmail').value = '';
+    document.getElementById('newPassword').value = '';
+    mostrarFormUsuario = false;
+    formUsuarioContainer.classList.add('hidden');
+    usuarioError.classList.remove('show');
+    cargarUsuarios();
+  } catch (err) {
+    usuarioError.textContent = err.message || 'Error al crear usuario';
+    usuarioError.classList.add('show');
+  } finally {
+    btnGuardarUsuario.textContent = 'Crear usuario';
   }
 });
 
-// Inicializar app
+// Handler global para eliminar usuario (desde HTML inline)
+window.eliminarUsuarioHandler = async (userId) => {
+  if (!confirm('¿Eliminar este usuario permanentemente?')) return;
+  try {
+    await eliminarUsuario(userId);
+    mostrarToast('Usuario eliminado');
+    cargarUsuarios();
+  } catch (err) {
+    mostrarToast(err.message || 'Error al eliminar', 'error');
+  }
+};
+
+// ========== INICIALIZAR ==========
 async function iniciarApp() {
   await cargarOpcionesFiltros();
   renderizarFiltros();
   cargarStats();
-  buscar(''); // ← Lista por defecto al iniciar
+  buscar('');
 }
 
-// Inicializar auth al cargar página
 (async () => {
   const perfil = await restaurarSesion();
   if (perfil) {
