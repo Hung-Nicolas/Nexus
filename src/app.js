@@ -26,7 +26,7 @@ const configTablas = {
     titulo: 'Alumnos',
     campos: 'dni, nombre, apellido, email, especialidad, division, turno, activo',
     orden: { column: 'apellido', ascending: true },
-    buscarEn: ['nombre', 'apellido', 'email', 'dni::text'],
+    buscarEn: ['nombre', 'apellido', 'email'],
     filtros: [
       { key: 'turno', label: 'Turno', tipo: 'select', opciones: ['Mañana', 'Tarde', 'Noche'] },
       { key: 'especialidad', label: 'Especialidad', tipo: 'select', opciones: [] },
@@ -54,7 +54,7 @@ const configTablas = {
     titulo: 'Personal',
     campos: 'dni, nombre, apellido, email, rol, activo',
     orden: { column: 'apellido', ascending: true },
-    buscarEn: ['nombre', 'apellido', 'email', 'rol', 'dni::text'],
+    buscarEn: ['nombre', 'apellido', 'email', 'rol'],
     filtros: [
       { key: 'rol', label: 'Rol', tipo: 'select', opciones: ['directivo', 'docente', 'preceptor', 'administrativo', 'otro'] },
       { key: 'activo', label: 'Estado', tipo: 'chips', opciones: [
@@ -76,7 +76,7 @@ const configTablas = {
     titulo: 'Cursos',
     campos: 'id_curso, anio, division, turno, especialidad',
     orden: { column: 'anio', ascending: true },
-    buscarEn: ['division', 'turno', 'especialidad', 'anio::text'],
+    buscarEn: ['division', 'turno', 'especialidad'],
     filtros: [
       { key: 'turno', label: 'Turno', tipo: 'select', opciones: ['Mañana', 'Tarde', 'Noche'] },
       { key: 'especialidad', label: 'Especialidad', tipo: 'select', opciones: [] },
@@ -353,9 +353,26 @@ async function buscar(query) {
 
     // Filtro de búsqueda texto
     if (termino && termino.length >= 1) {
+      const esNumero = /^\d+$/.test(termino);
+
+      // Si es número, buscar por igualdad en campos numéricos
+      if (esNumero) {
+        const num = parseInt(termino, 10);
+        if (tablaActual === 'alumnos' || tablaActual === 'personal') {
+          supaQuery = supaQuery.or(`dni.eq.${num}`);
+        } else if (tablaActual === 'cursos') {
+          supaQuery = supaQuery.or(`anio.eq.${num}`);
+        }
+      }
+
+      // Búsqueda textual (escapando wildcards de ILIKE)
       if (config.buscarEn.length > 0) {
+        const terminoEscapado = termino
+          .replace(/\\/g, '\\\\')
+          .replace(/%/g, '\\%')
+          .replace(/_/g, '\\_');
         const filtros = config.buscarEn
-          .map(campo => `${campo}.ilike.%${termino}%`)
+          .map(campo => `${campo}.ilike.%${terminoEscapado}%`)
           .join(',');
         supaQuery = supaQuery.or(filtros);
       }

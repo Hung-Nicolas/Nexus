@@ -1,7 +1,6 @@
 <div align="center">
   <img src="src/assets/Nexus_logo.png" width="120" alt="Nexus Logo">
   <br><br>
-  <img src="src/assets/Nexus_wordmark.png" width="240" alt="Nexus Wordmark">
   
   <p><strong>Base de Datos Escolar Maestra</strong></p>
   <p>Backend centralizado en Supabase con buscador web integrado.<br>
@@ -61,5 +60,5 @@ Supabase · PostgreSQL · Vite · JavaScript vanilla · CSS3
 ---
 
 <div align="center">
-  <sub>Proyecto interno educativo · Nexus Team</sub>
+  <sub>Proyecto interno educativo · Hecho con mucho café</sub>
 </div>
