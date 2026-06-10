@@ -190,11 +190,27 @@ loginForm.addEventListener('submit', async (e) => {
 
   try {
     await iniciarSesion(email, password);
-    loginBtnText.textContent = 'Ingresar';
   } catch (err) {
+    console.error('[Nexus] Login error:', err);
+
+    let mensaje = err.message || 'Error al ingresar';
+
+    // Mensajes descriptivos según tipo de error
+    if (mensaje.includes('timeout') || mensaje.includes('Servidor lento') || mensaje.includes('fetch') || mensaje.includes('network')) {
+      mensaje = 'Servidor lento o sin conexión. Reintentá en unos segundos.';
+    } else if (mensaje.includes('Invalid login credentials')) {
+      mensaje = 'Email o contraseña incorrectos.';
+    } else if (mensaje.includes('Email not confirmed')) {
+      mensaje = 'Email no confirmado. Revisá tu bandeja de entrada.';
+    } else if (mensaje.includes('404') || mensaje.includes('not found') || mensaje.includes('PGRST')) {
+      mensaje = 'Error de configuración. Ejecutá migracion_auth.sql en Supabase.';
+    } else if (mensaje.includes('rate limit')) {
+      mensaje = 'Demasiados intentos. Esperá unos minutos.';
+    }
+
+    mostrarToast(mensaje, 'error');
+  } finally {
     loginBtnText.textContent = 'Ingresar';
-    loginError.textContent = err.message || 'Credenciales inválidas';
-    loginError.classList.add('show');
   }
 });
 

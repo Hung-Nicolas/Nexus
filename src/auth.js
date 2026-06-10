@@ -66,7 +66,14 @@ async function cargarPerfil(userId) {
 // ========== AUTH BASICO ==========
 
 export async function iniciarSesion(email, password) {
-  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+  // Timeout de 10 segundos para evitar que se cuelgue indefinidamente
+  const timeoutPromise = new Promise((_, reject) =>
+    setTimeout(() => reject(new Error('Servidor lento o sin conexión. Reintentá en unos segundos.')), 10000)
+  );
+
+  const authPromise = supabase.auth.signInWithPassword({ email, password });
+  const { data, error } = await Promise.race([authPromise, timeoutPromise]);
+
   if (error) throw error;
   await cargarPerfil(data.user.id);
   return _perfil;
