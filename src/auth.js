@@ -27,16 +27,26 @@ function perfilFallback(user) {
   };
 }
 
+function withTimeout(promise, ms, label) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error(`${label} (timeout ${ms}ms)`)), ms)
+    )
+  ]);
+}
+
 async function cargarPerfil(user) {
   console.log('[Nexus Debug] cargarPerfil iniciado para user.id:', user.id);
   try {
-    const { data, error } = await supabase
-      .from('perfiles')
-      .select('*')
-      .eq('id', user.id)
-      .single();
-
-    console.log('[Nexus Debug] cargarPerfil → data:', data, '| error:', error);
+    const t0 = performance.now();
+    const { data, error } = await withTimeout(
+      supabase.from('perfiles').select('*').eq('id', user.id).single(),
+      5000,
+      'cargarPerfil timeout'
+    );
+    const t1 = performance.now();
+    console.log(`[Nexus Debug] cargarPerfil respondió en ${Math.round(t1 - t0)}ms → data:`, data, '| error:', error);
 
     if (error) {
       console.warn('[Nexus Debug] cargarPerfil error, usando fallback. Error:', error.message);
@@ -64,7 +74,7 @@ async function cargarPerfil(user) {
     console.log('[Nexus Debug] cargarPerfil exitoso, perfil:', _perfil);
     notify('signed_in', _perfil);
   } catch (err) {
-    console.warn('[Nexus Debug] cargarPerfil excepción:', err);
+    console.warn('[Nexus Debug] cargarPerfil excepción/timeout:', err.message);
     _perfil = perfilFallback(user);
     notify('signed_in', _perfil);
   }
@@ -75,6 +85,16 @@ async function cargarPerfil(user) {
 export async function iniciarSesion(email, password) {
   console.log('[Nexus Debug] iniciarSesion llamado con email:', email);
 
+  // 1. Primero verificar si ya hay sesión activa
+  console.log('[Nexus Debug] Verificando sesión existente...');
+  const { data: { session } } = await supabase.auth.getSession();
+  if (session?.user) {
+    console.log('[Nexus Debug] Sesión existente encontrada, saltando signInWithPassword');
+    await cargarPerfil(session.user);
+    return _perfil;
+  }
+
+  // 2. No hay sesión → llamar signInWithPassword con timeout
   let timeoutId;
   const timeoutPromise = new Promise((_, reject) => {
     timeoutId = setTimeout(() => {
@@ -89,12 +109,11 @@ export async function iniciarSesion(email, password) {
 
   try {
     const result = await Promise.race([authPromise, timeoutPromise]);
-    const t1 = performance.now();
     clearTimeout(timeoutId);
+    const t1 = performance.now();
     console.log('[Nexus Debug] signInWithPassword respondió en', Math.round(t1 - t0), 'ms');
     console.log('[Nexus Debug] Resultado:', result);
 
-    // Supabase resuelve con { data, error } — no rechaza
     const { data, error } = result;
 
     if (error) {
@@ -103,8 +122,6 @@ export async function iniciarSesion(email, password) {
     }
 
     console.log('[Nexus Debug] signInWithPassword OK. user.id:', data?.user?.id);
-    console.log('[Nexus Debug] session presente:', !!data?.session);
-
     await cargarPerfil(data.user);
     console.log('[Nexus Debug] iniciarSesion terminó OK, perfil:', _perfil);
     return _perfil;
@@ -123,18 +140,28 @@ export async function cerrarSesion() {
 
 export async function restaurarSesion() {
   console.log('[Nexus Debug] restaurarSesion iniciado');
-  const { data: { session } } = await supabase.auth.getSession();
-  console.log('[Nexus Debug] getSession → session:', session ? 'presente' : 'null');
+  try {
+    const { data: { session } } = await withTimeout(
+      supabase.auth.getSession(),
+      5000,
+      'getSession timeout'
+    );
+    console.log('[Nexus Debug] getSession → session:', session ? 'presente' : 'null');
 
-  if (!session?.user) {
-    console.log('[Nexus Debug] No hay sesión activa');
+    if (!session?.user) {
+      console.log('[Nexus Debug] No hay sesión activa');
+      notify('signed_out', null);
+      return null;
+    }
+
+    console.log('[Nexus Debug] Sesión activa encontrada, user.id:', session.user.id);
+    await cargarPerfil(session.user);
+    return _perfil;
+  } catch (err) {
+    console.warn('[Nexus Debug] restaurarSesion error/timeout:', err.message);
     notify('signed_out', null);
     return null;
   }
-
-  console.log('[Nexus Debug] Sesión activa encontrada, user.id:', session.user.id);
-  await cargarPerfil(session.user);
-  return _perfil;
 }
 
 supabase.auth.onAuthStateChange(async (event, session) => {
