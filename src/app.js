@@ -1,5 +1,6 @@
 import { supabase } from './lib/supabase.js';
 import { iniciarSesion, cerrarSesion, restaurarSesion, getPerfil, onAuthChange, listarUsuarios, crearUsuario, eliminarUsuario, cambiarPasswordUsuario } from './auth.js';
+import { GIE_ENABLED, enviarInformeAGIE } from './gie-client.js';
 import './styles.css';
 
 // Estado
@@ -31,6 +32,7 @@ const searchInput = document.getElementById('searchInput');
 const resultsGrid = document.getElementById('resultsGrid');
 const resultsTitle = document.getElementById('resultsTitle');
 const resultsCount = document.getElementById('resultsCount');
+const resultsActions = document.getElementById('resultsActions');
 const statsGrid = document.getElementById('statsGrid');
 const sidebarLinks = document.querySelectorAll('.nx-sidebar-link');
 const sectionBuscador = document.getElementById('sectionBuscador');
@@ -116,6 +118,31 @@ const configTablas = {
       titulo: row.nombre,
       meta: [row.descripcion].filter(Boolean),
       tags: [],
+    }),
+  },
+  informes: {
+    titulo: 'Informes',
+    campos: 'id_informe, dni_alumno, id_categoria, tipo_falta, titulo, instancia, resumen, estado, numero, fecha_creacion',
+    orden: { column: 'fecha_creacion', ascending: false },
+    buscarEn: ['titulo', 'resumen', 'tipo_falta'],
+    filtros: [
+      { key: 'instancia', label: 'Instancia', tipo: 'select', opciones: ['leve', 'grave', 'muy_grave', 'consejo_aula', 'consejo', 'otro'] },
+      { key: 'estado', label: 'Estado', tipo: 'select', opciones: ['pendiente', 'revisado', 'anulado', 'archivado', 'derivado'] },
+    ],
+    render: (row) => ({
+      avatar: row.numero ? String(row.numero).slice(-3) : 'INF',
+      titulo: row.titulo || 'Sin título',
+      meta: [
+        row.instancia ? capitalizar(row.instancia) : null,
+        row.estado ? capitalizar(row.estado) : null,
+        row.fecha_creacion ? new Date(row.fecha_creacion).toLocaleDateString('es-AR') : null,
+      ].filter(Boolean),
+      tags: [
+        row.estado === 'pendiente' ? { text: 'Pendiente', style: 'amber' } : null,
+        row.estado === 'revisado' ? { text: 'Revisado', style: 'default' } : null,
+        row.estado === 'archivado' ? { text: 'Archivado', style: 'purple' } : null,
+        row.instancia === 'muy_grave' ? { text: 'Muy Grave', style: 'purple' } : null,
+      ].filter(Boolean),
     }),
   },
 };
@@ -484,6 +511,67 @@ async function buscar(query) {
   }
 }
 
+// Crear informe de prueba y sincronizar con GIE
+async function crearInformePrueba() {
+  const btn = resultsActions.querySelector('button');
+  if (btn) btn.textContent = 'Creando...';
+
+  try {
+    // 1. Insertar en Nexus
+    const informe = {
+      dni_alumno: 40000014, // Bruno Ortiz
+      id_categoria: 1, // Conducta
+      tipo_falta: 'Conducta',
+      titulo: 'Test sincronización Nexus → GIE',
+      instancia: 'leve',
+      resumen: 'Informe de prueba creado desde Nexus para verificar que aparece en GIE.',
+      estado: 'pendiente',
+      dni_creador: 20111001,
+      numero: 202600999,
+      observaciones: 'Creado automáticamente desde Nexus.',
+    };
+
+    const { data: nuevoInforme, error: errNexus } = await supabase
+      .from('informes')
+      .insert(informe)
+      .select()
+      .single();
+
+    if (errNexus) throw errNexus;
+
+    console.log('[Nexus] Informe creado:', nuevoInforme);
+    mostrarToast('Informe creado en Nexus', 'success');
+
+    // 2. Enviar a GIE
+    if (GIE_ENABLED) {
+      const gieResult = await enviarInformeAGIE(
+        informe.dni_alumno,
+        'Conducta',
+        informe.tipo_falta,
+        informe.titulo,
+        informe.instancia,
+        informe.resumen,
+        informe.estado
+      );
+
+      if (gieResult.ok) {
+        mostrarToast('Informe sincronizado con GIE ✅', 'success');
+      } else {
+        mostrarToast('GIE: ' + gieResult.error, 'error');
+      }
+    } else {
+      mostrarToast('GIE no configurado (faltan VITE_GIE_URL y VITE_GIE_ANON_KEY)', 'error');
+    }
+
+    buscar('');
+  } catch (err) {
+    console.error('[Nexus] Error creando informe:', err);
+    mostrarToast(err.message || 'Error al crear informe', 'error');
+  } finally {
+    if (btn) btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:middle;margin-right:4px;"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Nuevo informe de prueba';
+  }
+}
+
 // Cambio de tabla
 function cambiarTabla(nuevaTabla) {
   tablaActual = nuevaTabla;
@@ -493,8 +581,21 @@ function cambiarTabla(nuevaTabla) {
     personal: 'Buscar por nombre, apellido, rol, email...',
     cursos: 'Buscar por año, división, turno, especialidad...',
     materias: 'Buscar por nombre o descripción...',
+    informes: 'Buscar por título, resumen, tipo de falta...',
   };
-  searchInput.placeholder = placeholders[tablaActual];
+  searchInput.placeholder = placeholders[tablaActual] || 'Buscar...';
+
+  // Botón de acción según tabla
+  resultsActions.innerHTML = '';
+  if (tablaActual === 'informes') {
+    const btn = document.createElement('button');
+    btn.className = 'nx-login-btn';
+    btn.style.cssText = 'padding: 8px 16px; font-size: 13px;';
+    btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:middle;margin-right:4px;"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Nuevo informe de prueba';
+    btn.addEventListener('click', crearInformePrueba);
+    resultsActions.appendChild(btn);
+  }
+
   renderizarFiltros();
   buscar('');
 }
