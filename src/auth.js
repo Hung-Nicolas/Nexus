@@ -23,7 +23,6 @@ function perfilFallback(user) {
     nombre: user.user_metadata?.nombre || user.email?.split('@')[0] || 'Usuario',
     apellido: user.user_metadata?.apellido || 'Sin Perfil',
     rol: 'regente',
-    activo: true,
   };
 }
 
@@ -68,7 +67,6 @@ async function cargarPerfil(user) {
       nombre: data.nombre,
       apellido: data.apellido,
       rol: data.rol,
-      activo: data.activo,
     };
 
     console.log('[Nexus Debug] cargarPerfil exitoso, perfil:', _perfil);
@@ -202,9 +200,9 @@ export async function cambiarPasswordUsuario(userId, newPassword) {
   if (error) throw error;
 }
 
-export async function sincronizarPerfil(userId, email, nombre, apellido, activo = true) {
+export async function sincronizarPerfil(userId, email, nombre, apellido) {
   const { error } = await supabase.rpc('sincronizar_perfil', {
-    p_id: userId, p_email: email, p_nombre: nombre, p_apellido: apellido, p_rol: 'regente', p_activo: activo
+    p_id: userId, p_email: email, p_nombre: nombre, p_apellido: apellido, p_rol: 'regente'
   });
   if (error) throw error;
 }

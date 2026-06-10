@@ -25,7 +25,6 @@ CREATE TABLE IF NOT EXISTS public.alumnos (
     email_padre TEXT,
     telefono TEXT,
     id_curso INTEGER REFERENCES public.cursos(id_curso) ON DELETE SET NULL ON UPDATE CASCADE,
-    activo BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now())
 );
 
@@ -36,7 +35,6 @@ CREATE TABLE IF NOT EXISTS public.personal (
     apellido TEXT NOT NULL,
     email TEXT NOT NULL UNIQUE,
     rol TEXT NOT NULL CHECK (rol IN ('directivo', 'docente', 'preceptor', 'administrativo', 'otro')),
-    activo BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now())
 );
 
@@ -91,7 +89,6 @@ CREATE TABLE IF NOT EXISTS public.informes (
 -- ============================================================
 
 CREATE INDEX IF NOT EXISTS idx_alumnos_id_curso ON public.alumnos(id_curso);
-CREATE INDEX IF NOT EXISTS idx_alumnos_activo ON public.alumnos(activo);
 CREATE INDEX IF NOT EXISTS idx_evaluaciones_dni_alumno ON public.evaluaciones(dni_alumno);
 CREATE INDEX IF NOT EXISTS idx_evaluaciones_id_materia ON public.evaluaciones(id_materia);
 CREATE INDEX IF NOT EXISTS idx_evaluaciones_fecha ON public.evaluaciones(fecha);
@@ -114,7 +111,7 @@ ALTER TABLE public.evaluaciones ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.asistencias ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.informes ENABLE ROW LEVEL SECURITY;
 
--- Política base: lectura pública para datos activos (ajustar según necesidad)
+-- Política base: lectura pública
 DROP POLICY IF EXISTS "cursos_select_all" ON public.cursos;
 CREATE POLICY "cursos_select_all"
     ON public.cursos FOR SELECT
@@ -125,13 +122,13 @@ DROP POLICY IF EXISTS "alumnos_select_all" ON public.alumnos;
 CREATE POLICY "alumnos_select_all"
     ON public.alumnos FOR SELECT
     TO anon, authenticated
-    USING (activo = true);
+    USING (true);
 
 DROP POLICY IF EXISTS "personal_select_all" ON public.personal;
 CREATE POLICY "personal_select_all"
     ON public.personal FOR SELECT
     TO anon, authenticated
-    USING (activo = true);
+    USING (true);
 
 DROP POLICY IF EXISTS "materias_select_all" ON public.materias;
 CREATE POLICY "materias_select_all"

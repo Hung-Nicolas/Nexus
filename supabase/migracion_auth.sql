@@ -10,7 +10,6 @@ CREATE TABLE IF NOT EXISTS public.perfiles (
     nombre TEXT NOT NULL,
     apellido TEXT NOT NULL,
     rol TEXT NOT NULL DEFAULT 'regente' CHECK (rol = 'regente'),
-    activo BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now())
 );
 
@@ -40,14 +39,13 @@ CREATE POLICY "perfiles_update_regente"
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
-    INSERT INTO public.perfiles (id, email, nombre, apellido, rol, activo)
+    INSERT INTO public.perfiles (id, email, nombre, apellido, rol)
     VALUES (
         new.id,
         new.email,
         COALESCE(new.raw_user_meta_data->>'nombre', 'Sin'),
         COALESCE(new.raw_user_meta_data->>'apellido', 'Nombre'),
-        'regente',
-        TRUE
+        'regente'
     )
     ON CONFLICT (id) DO NOTHING;
     RETURN new;
@@ -81,7 +79,6 @@ RETURNS TABLE(
     nombre TEXT,
     apellido TEXT,
     rol TEXT,
-    activo BOOLEAN,
     tiene_perfil BOOLEAN
 )
 LANGUAGE sql
@@ -95,7 +92,6 @@ AS $$
     COALESCE(p.nombre, 'Sin')::TEXT as nombre,
     COALESCE(p.apellido, 'Nombre')::TEXT as apellido,
     COALESCE(p.rol, 'regente')::TEXT as rol,
-    COALESCE(p.activo, true)::BOOLEAN as activo,
     (p.id IS NOT NULL)::BOOLEAN as tiene_perfil
   FROM auth.users u
   LEFT JOIN public.perfiles p ON u.id = p.id
@@ -111,8 +107,7 @@ CREATE OR REPLACE FUNCTION public.sincronizar_perfil(
     p_email TEXT,
     p_nombre TEXT DEFAULT 'Sin',
     p_apellido TEXT DEFAULT 'Nombre',
-    p_rol TEXT DEFAULT 'regente',
-    p_activo BOOLEAN DEFAULT true
+    p_rol TEXT DEFAULT 'regente'
 )
 RETURNS void
 LANGUAGE plpgsql
@@ -120,18 +115,17 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 BEGIN
-    INSERT INTO public.perfiles (id, email, nombre, apellido, rol, activo)
-    VALUES (p_id, p_email, p_nombre, p_apellido, p_rol, p_activo)
+    INSERT INTO public.perfiles (id, email, nombre, apellido, rol)
+    VALUES (p_id, p_email, p_nombre, p_apellido, p_rol)
     ON CONFLICT (id) DO UPDATE SET
         nombre = EXCLUDED.nombre,
         apellido = EXCLUDED.apellido,
         email = EXCLUDED.email,
-        rol = EXCLUDED.rol,
-        activo = EXCLUDED.activo;
+        rol = EXCLUDED.rol;
 END;
 $$;
 
-GRANT EXECUTE ON FUNCTION public.sincronizar_perfil(UUID, TEXT, TEXT, TEXT, TEXT, BOOLEAN) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.sincronizar_perfil(UUID, TEXT, TEXT, TEXT, TEXT) TO authenticated;
 
 -- Eliminar usuario completamente (auth.users + perfiles via CASCADE)
 DROP FUNCTION IF EXISTS public.eliminar_usuario_completo(UUID);

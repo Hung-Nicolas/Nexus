@@ -46,17 +46,14 @@ const usuariosGrid = document.getElementById('usuariosGrid');
 const configTablas = {
   alumnos: {
     titulo: 'Alumnos',
-    campos: 'dni, nombre, apellido, email, especialidad, division, turno, activo',
+    campos: 'dni, nombre, apellido, email, especialidad, division, turno',
     orden: { column: 'apellido', ascending: true },
     buscarEn: ['nombre', 'apellido', 'email'],
     filtros: [
       { key: 'turno', label: 'Turno', tipo: 'select', opciones: ['Mañana', 'Tarde', 'Noche'] },
       { key: 'especialidad', label: 'Especialidad', tipo: 'select', opciones: [] },
       { key: 'division', label: 'División', tipo: 'select', opciones: [] },
-      { key: 'activo', label: 'Estado', tipo: 'chips', opciones: [
-        { value: 'true', label: 'Activo' },
-        { value: 'false', label: 'Inactivo' }
-      ]},
+
     ],
     render: (row) => ({
       avatar: `${row.nombre?.[0] || ''}${row.apellido?.[0] || ''}`,
@@ -68,21 +65,18 @@ const configTablas = {
       ].filter(Boolean),
       tags: [
         row.especialidad ? { text: row.especialidad, style: 'default' } : null,
-        row.activo === false ? { text: 'Inactivo', style: 'purple' } : null,
+
       ].filter(Boolean),
     }),
   },
   personal: {
     titulo: 'Personal',
-    campos: 'dni, nombre, apellido, email, rol, activo',
+    campos: 'dni, nombre, apellido, email, rol',
     orden: { column: 'apellido', ascending: true },
     buscarEn: ['nombre', 'apellido', 'email', 'rol'],
     filtros: [
       { key: 'rol', label: 'Rol', tipo: 'select', opciones: ['directivo', 'docente', 'preceptor', 'administrativo', 'otro'] },
-      { key: 'activo', label: 'Estado', tipo: 'chips', opciones: [
-        { value: 'true', label: 'Activo' },
-        { value: 'false', label: 'Inactivo' }
-      ]},
+
     ],
     render: (row) => ({
       avatar: `${row.nombre?.[0] || ''}${row.apellido?.[0] || ''}`,
@@ -90,7 +84,7 @@ const configTablas = {
       meta: [row.email, row.rol ? capitalizar(row.rol) : null].filter(Boolean),
       tags: [
         row.rol ? { text: capitalizar(row.rol), style: 'default' } : null,
-        row.activo === false ? { text: 'Inactivo', style: 'purple' } : null,
+
       ].filter(Boolean),
     }),
   },
@@ -273,15 +267,15 @@ sidebarOverlay?.addEventListener('click', closeSidebar);
 async function cargarStats() {
   try {
     const [alumnos, personal, cursos, materias] = await Promise.all([
-      supabase.from('alumnos').select('dni', { count: 'exact', head: true }).eq('activo', true),
-      supabase.from('personal').select('dni', { count: 'exact', head: true }).eq('activo', true),
+      supabase.from('alumnos').select('dni', { count: 'exact', head: true }),
+      supabase.from('personal').select('dni', { count: 'exact', head: true }),
       supabase.from('cursos').select('id_curso', { count: 'exact', head: true }),
       supabase.from('materias').select('id_materia', { count: 'exact', head: true }),
     ]);
 
     statsGrid.innerHTML = [
-      { label: 'Alumnos activos', value: alumnos.count || 0 },
-      { label: 'Personal activo', value: personal.count || 0 },
+      { label: 'Alumnos', value: alumnos.count || 0 },
+      { label: 'Personal', value: personal.count || 0 },
       { label: 'Cursos', value: cursos.count || 0 },
       { label: 'Materias', value: materias.count || 0 },
     ].map(s => `
@@ -444,13 +438,9 @@ async function buscar(query) {
 
     Object.entries(filtrosActuales).forEach(([key, value]) => {
       if (value === undefined || value === '') return;
-      if (key === 'activo') supaQuery = supaQuery.eq(key, value === 'true');
-      else supaQuery = supaQuery.eq(key, value);
+      supaQuery = supaQuery.eq(key, value);
     });
 
-    if ((tablaActual === 'alumnos' || tablaActual === 'personal') && !filtrosActuales.activo) {
-      supaQuery = supaQuery.eq('activo', true);
-    }
 
     const { data, error } = await supaQuery;
     if (error) throw error;
@@ -570,7 +560,7 @@ async function cargarUsuarios() {
                 </td>
                 <td style="padding: 12px; color: var(--nx-text-muted);">${escapeHtml(u.email)}</td>
                 <td style="padding: 12px;"><span class="nx-card-tag">${escapeHtml(capitalizar(u.rol))}</span></td>
-                <td style="padding: 12px;">${u.activo !== false ? '<span style="color:#4ade80;font-size:12px;">● Activo</span>' : '<span style="color:#ef4444;font-size:12px;">● Inactivo</span>'}</td>
+                <td style="padding: 12px;"><span style="color:#4ade80;font-size:12px;">●</span></td>
                 <td style="padding: 12px; text-align: right;">
                   ${u.id !== getPerfil()?.id ? `
                     <button class="nx-filter-reset" style="color:#f87171;" onclick="eliminarUsuarioHandler('${u.id}')">Eliminar</button>
