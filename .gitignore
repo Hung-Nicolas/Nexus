@@ -20,3 +20,10 @@ dist-ssr
 # OS
 .DS_Store
 Thumbs.db
+
+#AGENTS
+AGENTS.md
+
+# SQL files (only schema.sql is tracked)
+supabase/*.sql
+!supabase/schema.sql

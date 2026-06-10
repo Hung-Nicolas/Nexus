@@ -8,4 +8,12 @@ console.log('[Nexus Debug] ANON_KEY presente:', supabaseAnonKey ? 'SÍ' : 'NO')
 console.log('[Nexus Debug] ANON_KEY empieza con eyJ...:', supabaseAnonKey.startsWith('eyJ'))
 console.log('[Nexus Debug] ANON_KEY longitud:', supabaseAnonKey.length)
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    persistSession: true,
+    storageKey: 'nexus-auth-session',
+    storage: localStorage,
+    autoRefreshToken: true,
+    detectSessionInUrl: false,
+  }
+})

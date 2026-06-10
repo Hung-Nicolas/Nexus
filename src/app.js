@@ -44,31 +44,72 @@ const btnCancelarUsuario = document.getElementById('btnCancelarUsuario');
 const usuarioError = document.getElementById('usuarioError');
 const usuariosGrid = document.getElementById('usuariosGrid');
 
+// Modal CRUD
+const modalCRUD = document.getElementById('modalCRUD');
+const modalTitulo = document.getElementById('modalTitulo');
+const modalBody = document.getElementById('modalBody');
+const modalCerrar = document.getElementById('modalCerrar');
+const modalCancelar = document.getElementById('modalCancelar');
+const modalGuardar = document.getElementById('modalGuardar');
+const modalBackdrop = document.getElementById('modalBackdrop');
+let modalOnGuardar = null;
+
 // Configuración por tabla
 const configTablas = {
   alumnos: {
     titulo: 'Alumnos',
-    campos: 'dni, nombre, apellido, email, especialidad, division, turno',
+    campos: 'dni, nombre, apellido, email, especialidad, division, turno, email_padre, telefono, id_curso',
     orden: { column: 'apellido', ascending: true },
     buscarEn: ['nombre', 'apellido', 'email'],
     filtros: [
       { key: 'turno', label: 'Turno', tipo: 'select', opciones: ['Mañana', 'Tarde', 'Noche'] },
       { key: 'especialidad', label: 'Especialidad', tipo: 'select', opciones: [] },
       { key: 'division', label: 'División', tipo: 'select', opciones: [] },
-
+    ],
+    pk: 'dni',
+    editable: true,
+    camposFormulario: [
+      { key: 'dni', label: 'DNI', tipo: 'number', required: true },
+      { key: 'nombre', label: 'Nombre', tipo: 'text', required: true },
+      { key: 'apellido', label: 'Apellido', tipo: 'text', required: true },
+      { key: 'email', label: 'Email', tipo: 'email' },
+      { key: 'especialidad', label: 'Especialidad', tipo: 'text' },
+      { key: 'division', label: 'División', tipo: 'text', required: true },
+      { key: 'turno', label: 'Turno', tipo: 'select', opciones: ['Mañana', 'Tarde', 'Noche'], required: true },
+      { key: 'email_padre', label: 'Email del padre/tutor', tipo: 'email' },
+      { key: 'telefono', label: 'Teléfono', tipo: 'text' },
+      { key: 'id_curso', label: 'Curso', tipo: 'select', tabla: 'cursos', labelField: 'anio,division,turno' },
     ],
     render: (row) => ({
       avatar: `${row.nombre?.[0] || ''}${row.apellido?.[0] || ''}`,
       titulo: `${row.apellido}, ${row.nombre}`,
-      meta: [
-        row.dni ? `DNI ${row.dni}` : null,
-        row.division || null,
-        row.turno || null,
-      ].filter(Boolean),
-      tags: [
-        row.especialidad ? { text: row.especialidad, style: 'default' } : null,
-
-      ].filter(Boolean),
+      meta: [row.dni ? `DNI ${row.dni}` : null, row.division, row.turno].filter(Boolean),
+      tags: [row.especialidad ? { text: row.especialidad, style: 'default' } : null].filter(Boolean),
+    }),
+  },
+  responsables: {
+    titulo: 'Responsables',
+    campos: 'id_responsable, dni_alumno, nombre, apellido, telefono, email, vinculo',
+    orden: { column: 'apellido', ascending: true },
+    buscarEn: ['nombre', 'apellido', 'email', 'telefono'],
+    filtros: [
+      { key: 'vinculo', label: 'Vínculo', tipo: 'select', opciones: ['padre', 'madre', 'tutor', 'otro'] },
+    ],
+    pk: 'id_responsable',
+    editable: true,
+    camposFormulario: [
+      { key: 'dni_alumno', label: 'Alumno (DNI)', tipo: 'select', tabla: 'alumnos', labelField: 'apellido,nombre', valueField: 'dni', required: true },
+      { key: 'nombre', label: 'Nombre', tipo: 'text', required: true },
+      { key: 'apellido', label: 'Apellido', tipo: 'text', required: true },
+      { key: 'telefono', label: 'Teléfono', tipo: 'text' },
+      { key: 'email', label: 'Email', tipo: 'email' },
+      { key: 'vinculo', label: 'Vínculo', tipo: 'select', opciones: ['padre', 'madre', 'tutor', 'otro'], required: true },
+    ],
+    render: (row) => ({
+      avatar: `${row.nombre?.[0] || ''}${row.apellido?.[0] || ''}`,
+      titulo: `${row.apellido}, ${row.nombre}`,
+      meta: [row.vinculo ? capitalizar(row.vinculo) : null, row.telefono].filter(Boolean),
+      tags: [row.email ? { text: row.email, style: 'default' } : null].filter(Boolean),
     }),
   },
   personal: {
@@ -77,17 +118,22 @@ const configTablas = {
     orden: { column: 'apellido', ascending: true },
     buscarEn: ['nombre', 'apellido', 'email', 'rol'],
     filtros: [
-      { key: 'rol', label: 'Rol', tipo: 'select', opciones: ['directivo', 'docente', 'preceptor', 'administrativo', 'otro'] },
-
+      { key: 'rol', label: 'Rol', tipo: 'select', opciones: ['rector', 'vicerector', 'docente', 'preceptor', 'administrativo', 'jefe_de_taller', 'cooperadora', 'otro'] },
+    ],
+    pk: 'dni',
+    editable: true,
+    camposFormulario: [
+      { key: 'dni', label: 'DNI', tipo: 'number', required: true },
+      { key: 'nombre', label: 'Nombre', tipo: 'text', required: true },
+      { key: 'apellido', label: 'Apellido', tipo: 'text', required: true },
+      { key: 'email', label: 'Email', tipo: 'email', required: true },
+      { key: 'rol', label: 'Rol', tipo: 'select', opciones: ['rector', 'vicerector', 'docente', 'preceptor', 'administrativo', 'jefe_de_taller', 'cooperadora', 'otro'], required: true },
     ],
     render: (row) => ({
       avatar: `${row.nombre?.[0] || ''}${row.apellido?.[0] || ''}`,
       titulo: `${row.apellido}, ${row.nombre}`,
       meta: [row.email, row.rol ? capitalizar(row.rol) : null].filter(Boolean),
-      tags: [
-        row.rol ? { text: capitalizar(row.rol), style: 'default' } : null,
-
-      ].filter(Boolean),
+      tags: [row.rol ? { text: capitalizar(row.rol), style: 'default' } : null].filter(Boolean),
     }),
   },
   cursos: {
@@ -99,6 +145,14 @@ const configTablas = {
       { key: 'turno', label: 'Turno', tipo: 'select', opciones: ['Mañana', 'Tarde', 'Noche'] },
       { key: 'especialidad', label: 'Especialidad', tipo: 'select', opciones: [] },
       { key: 'anio', label: 'Año', tipo: 'select', opciones: [] },
+    ],
+    pk: 'id_curso',
+    editable: true,
+    camposFormulario: [
+      { key: 'anio', label: 'Año', tipo: 'number', required: true },
+      { key: 'division', label: 'División', tipo: 'text', required: true },
+      { key: 'turno', label: 'Turno', tipo: 'select', opciones: ['Mañana', 'Tarde', 'Noche'], required: true },
+      { key: 'especialidad', label: 'Especialidad', tipo: 'text' },
     ],
     render: (row) => ({
       avatar: `${row.anio || ''}°`,
@@ -113,6 +167,12 @@ const configTablas = {
     orden: { column: 'nombre', ascending: true },
     buscarEn: ['nombre', 'descripcion'],
     filtros: [],
+    pk: 'id_materia',
+    editable: true,
+    camposFormulario: [
+      { key: 'nombre', label: 'Nombre', tipo: 'text', required: true },
+      { key: 'descripcion', label: 'Descripción', tipo: 'textarea' },
+    ],
     render: (row) => ({
       avatar: row.nombre?.[0] || 'M',
       titulo: row.nombre,
@@ -122,12 +182,25 @@ const configTablas = {
   },
   informes: {
     titulo: 'Informes',
-    campos: 'id_informe, dni_alumno, id_categoria, tipo_falta, titulo, instancia, resumen, estado, numero, fecha_creacion',
+    campos: 'id_informe, dni_alumno, id_categoria, tipo_falta, titulo, instancia, resumen, descargo, estado, numero, fecha_creacion',
     orden: { column: 'fecha_creacion', ascending: false },
     buscarEn: ['titulo', 'resumen', 'tipo_falta'],
     filtros: [
       { key: 'instancia', label: 'Instancia', tipo: 'select', opciones: ['leve', 'grave', 'muy_grave', 'consejo_aula', 'consejo', 'otro'] },
       { key: 'estado', label: 'Estado', tipo: 'select', opciones: ['pendiente', 'revisado', 'anulado', 'archivado', 'derivado'] },
+    ],
+    pk: 'id_informe',
+    editable: true,
+    camposFormulario: [
+      { key: 'dni_alumno', label: 'Alumno (DNI)', tipo: 'select', tabla: 'alumnos', labelField: 'apellido,nombre', valueField: 'dni', required: true },
+      { key: 'id_categoria', label: 'Categoría', tipo: 'select', tabla: 'categorias', labelField: 'nombre', valueField: 'id_categoria', required: true },
+      { key: 'tipo_falta', label: 'Tipo de falta', tipo: 'text', required: true },
+      { key: 'titulo', label: 'Título', tipo: 'text', required: true },
+      { key: 'instancia', label: 'Instancia', tipo: 'select', opciones: ['leve', 'grave', 'muy_grave', 'consejo_aula', 'consejo', 'otro'], required: true },
+      { key: 'resumen', label: 'Resumen', tipo: 'textarea', required: true },
+      { key: 'descargo', label: 'Descargo', tipo: 'textarea' },
+      { key: 'estado', label: 'Estado', tipo: 'select', opciones: ['pendiente', 'revisado', 'anulado', 'archivado', 'derivado'], required: true },
+      { key: 'numero', label: 'Número de informe', tipo: 'number' },
     ],
     render: (row) => ({
       avatar: row.numero ? String(row.numero).slice(-3) : 'INF',
@@ -490,16 +563,37 @@ async function buscar(query) {
         const sc = t.style === 'purple' ? 'nx-card-tag-purple' : t.style === 'amber' ? 'nx-card-tag-amber' : '';
         return `<span class="nx-card-tag ${sc}">${escapeHtml(t.text)}</span>`;
       }).join('');
+      const pkValue = row[config.pk];
+      const acciones = config.editable ? `
+        <div class="nx-card-actions">
+          <button class="nx-card-action-btn nx-card-action-edit" title="Editar" data-pk="${escapeHtml(String(pkValue))}">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          </button>
+          <button class="nx-card-action-btn nx-card-action-delete" title="Eliminar" data-pk="${escapeHtml(String(pkValue))}">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+          </button>
+        </div>` : '';
       return `
-        <div class="nx-card">
+        <div class="nx-card nx-card-crud">
           <div class="nx-card-avatar">${escapeHtml(rendered.avatar)}</div>
           <div class="nx-card-body">
             <div class="nx-card-title">${escapeHtml(rendered.titulo)}</div>
             <div class="nx-card-meta">${meta}</div>
             ${tags ? `<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;">${tags}</div>` : ''}
           </div>
+          ${acciones}
         </div>`;
     }).join('');
+
+    // Bind editar/eliminar
+    if (config.editable) {
+      resultsGrid.querySelectorAll('.nx-card-action-edit').forEach(btn => {
+        btn.addEventListener('click', () => abrirFormularioEditar(tablaActual, btn.dataset.pk));
+      });
+      resultsGrid.querySelectorAll('.nx-card-action-delete').forEach(btn => {
+        btn.addEventListener('click', () => eliminarRegistro(tablaActual, btn.dataset.pk));
+      });
+    }
   } catch (err) {
     console.error('[Nexus] Error:', err);
     mostrarToast('Error al cargar datos.', 'error');
@@ -576,8 +670,10 @@ async function crearInformePrueba() {
 function cambiarTabla(nuevaTabla) {
   tablaActual = nuevaTabla;
   filtrosActuales = {};
+  const config = configTablas[tablaActual];
   const placeholders = {
     alumnos: 'Buscar por nombre, apellido, DNI, email...',
+    responsables: 'Buscar por nombre, apellido, teléfono...',
     personal: 'Buscar por nombre, apellido, rol, email...',
     cursos: 'Buscar por año, división, turno, especialidad...',
     materias: 'Buscar por nombre o descripción...',
@@ -585,15 +681,25 @@ function cambiarTabla(nuevaTabla) {
   };
   searchInput.placeholder = placeholders[tablaActual] || 'Buscar...';
 
-  // Botón de acción según tabla
+  // Botón "Nuevo" para tablas editables
   resultsActions.innerHTML = '';
-  if (tablaActual === 'informes') {
+  if (config?.editable) {
     const btn = document.createElement('button');
     btn.className = 'nx-login-btn';
     btn.style.cssText = 'padding: 8px 16px; font-size: 13px;';
-    btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:middle;margin-right:4px;"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Nuevo informe de prueba';
-    btn.addEventListener('click', crearInformePrueba);
+    btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:middle;margin-right:4px;"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Nuevo ${config.titulo.toLowerCase().slice(0, -1)}`;
+    btn.addEventListener('click', () => abrirFormularioCrear(tablaActual));
     resultsActions.appendChild(btn);
+  }
+
+  // Botón "Sync con GIE" solo para informes
+  if (tablaActual === 'informes' && GIE_ENABLED) {
+    const btnSync = document.createElement('button');
+    btnSync.className = 'nx-login-btn';
+    btnSync.style.cssText = 'padding: 8px 16px; font-size: 13px; margin-left: 8px; background: var(--nx-bg-card); color: var(--nx-text); border: 1px solid var(--nx-border);';
+    btnSync.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:middle;margin-right:4px;"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/></svg> Sincronizar con GIE`;
+    btnSync.addEventListener('click', sincronizarInformesDesdeGIE);
+    resultsActions.appendChild(btnSync);
   }
 
   renderizarFiltros();
@@ -739,6 +845,283 @@ window.eliminarUsuarioHandler = async (userId) => {
     mostrarToast(err.message || 'Error al eliminar', 'error');
   }
 };
+
+// ========== CRUD GENÉRICO CON MODAL ==========
+
+function abrirModal(titulo, bodyHTML, onGuardar) {
+  modalTitulo.textContent = titulo;
+  modalBody.innerHTML = bodyHTML;
+  modalOnGuardar = onGuardar;
+  modalCRUD.classList.remove('hidden');
+  document.body.style.overflow = 'hidden';
+  // Focus en primer input
+  setTimeout(() => {
+    const firstInput = modalBody.querySelector('input, select, textarea');
+    firstInput?.focus();
+  }, 100);
+}
+
+function cerrarModal() {
+  modalCRUD.classList.add('hidden');
+  document.body.style.overflow = '';
+  modalOnGuardar = null;
+}
+
+modalCerrar.addEventListener('click', cerrarModal);
+modalCancelar.addEventListener('click', cerrarModal);
+modalBackdrop.addEventListener('click', cerrarModal);
+modalGuardar.addEventListener('click', () => {
+  if (modalOnGuardar) modalOnGuardar();
+});
+
+// Cerrar modal con Escape
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && !modalCRUD.classList.contains('hidden')) {
+    cerrarModal();
+  }
+});
+
+async function cargarOpcionesSelect(tabla, labelField, valueField = null) {
+  try {
+    const { data, error } = await supabase.from(tabla).select('*').order(labelField.split(',')[0]);
+    if (error) throw error;
+    return (data || []).map(row => {
+      const label = labelField.split(',').map(f => row[f.trim()]).filter(Boolean).join(' · ');
+      const value = valueField ? row[valueField] : row[labelField.split(',')[0].trim()];
+      return { value, label };
+    });
+  } catch (err) {
+    console.error('[Nexus] Error cargando opciones:', err);
+    return [];
+  }
+}
+
+function renderizarCampoFormulario(campo, valor = '') {
+  const valorEscapado = escapeHtml(valor);
+  const required = campo.required ? 'required' : '';
+
+  if (campo.tipo === 'textarea') {
+    return `
+      <div class="nx-login-field nx-form-field-full">
+        <label class="nx-login-label">${campo.label}${campo.required ? ' *' : ''}</label>
+        <textarea class="nx-login-input" data-campo="${campo.key}" rows="3" ${required}>${valorEscapado}</textarea>
+      </div>`;
+  }
+  if (campo.tipo === 'select') {
+    return `
+      <div class="nx-login-field">
+        <label class="nx-login-label">${campo.label}${campo.required ? ' *' : ''}</label>
+        <select class="nx-login-input" data-campo="${campo.key}" ${required}>
+          <option value="">Seleccionar...</option>
+          ${(campo.opciones || []).map(op => `<option value="${escapeHtml(op)}" ${valorEscapado === op ? 'selected' : ''}>${escapeHtml(capitalizar(op))}</option>`).join('')}
+        </select>
+      </div>`;
+  }
+  return `
+    <div class="nx-login-field">
+      <label class="nx-login-label">${campo.label}${campo.required ? ' *' : ''}</label>
+      <input type="${campo.tipo}" class="nx-login-input" data-campo="${campo.key}" value="${valorEscapado}" placeholder="${campo.label}" ${required}>
+    </div>`;
+}
+
+async function construirFormularioHTML(entidad, datos = null) {
+  const config = configTablas[entidad];
+  if (!config?.camposFormulario) return '';
+
+  const camposHTML = [];
+  for (const campo of config.camposFormulario) {
+    let valor = datos?.[campo.key] ?? '';
+
+    // Si es select con tabla, cargar opciones dinámicamente
+    if (campo.tipo === 'select' && campo.tabla) {
+      const opciones = await cargarOpcionesSelect(campo.tabla, campo.labelField, campo.valueField);
+      const optionsHTML = opciones.map(op =>
+        `<option value="${escapeHtml(String(op.value))}" ${String(valor) === String(op.value) ? 'selected' : ''}>${escapeHtml(op.label)}</option>`
+      ).join('');
+      camposHTML.push(`
+        <div class="nx-login-field">
+          <label class="nx-login-label">${campo.label}${campo.required ? ' *' : ''}</label>
+          <select class="nx-login-input" data-campo="${campo.key}" ${campo.required ? 'required' : ''}>
+            <option value="">Seleccionar...</option>
+            ${optionsHTML}
+          </select>
+        </div>`);
+    } else {
+      camposHTML.push(renderizarCampoFormulario(campo, valor));
+    }
+  }
+  return camposHTML.join('');
+}
+
+async function abrirFormularioCrear(entidad) {
+  const config = configTablas[entidad];
+  const html = await construirFormularioHTML(entidad);
+  abrirModal(`Nuevo ${config.titulo.toLowerCase().slice(0, -1)}`, html, () => guardarRegistro(entidad, true));
+}
+
+async function abrirFormularioEditar(entidad, pkValue) {
+  const config = configTablas[entidad];
+  try {
+    const { data, error } = await supabase.from(entidad).select('*').eq(config.pk, pkValue).single();
+    if (error) throw error;
+    const html = await construirFormularioHTML(entidad, data);
+    abrirModal(`Editar ${config.titulo.toLowerCase().slice(0, -1)}`, html, () => guardarRegistro(entidad, false, pkValue));
+  } catch (err) {
+    mostrarToast('Error al cargar datos', 'error');
+    console.error(err);
+  }
+}
+
+async function guardarRegistro(entidad, esNuevo, pkValue = null) {
+  const config = configTablas[entidad];
+  const datos = {};
+
+  // Leer valores del formulario
+  for (const campo of config.camposFormulario) {
+    const el = modalBody.querySelector(`[data-campo="${campo.key}"]`);
+    if (!el) continue;
+    let valor = el.value.trim();
+    if (campo.tipo === 'number') valor = valor ? parseInt(valor, 10) : null;
+    if (valor === '') valor = null;
+    datos[campo.key] = valor;
+  }
+
+  // Validar campos requeridos
+  for (const campo of config.camposFormulario) {
+    if (campo.required && !datos[campo.key]) {
+      mostrarToast(`El campo "${campo.label}" es obligatorio`, 'error');
+      const elF = modalBody.querySelector(`[data-campo="${campo.key}"]`);
+      elF?.focus();
+      return;
+    }
+  }
+
+  modalGuardar.textContent = 'Guardando...';
+  try {
+    if (esNuevo) {
+      const { error } = await supabase.from(entidad).insert(datos);
+      if (error) throw error;
+      mostrarToast(`${config.titulo} creado correctamente`);
+    } else {
+      const { error } = await supabase.from(entidad).update(datos).eq(config.pk, pkValue);
+      if (error) throw error;
+      mostrarToast(`${config.titulo} actualizado correctamente`);
+    }
+
+    // Sync con GIE para informes
+    if (entidad === 'informes') {
+      let categoriaNombre = 'Otros';
+      if (datos.id_categoria) {
+        try {
+          const { data: cat } = await supabase.from('categorias').select('nombre').eq('id_categoria', datos.id_categoria).single();
+          if (cat?.nombre) categoriaNombre = cat.nombre;
+        } catch (e) { /* noop */ }
+      }
+      const syncResult = await enviarInformeAGIE({ ...datos, categoria_nombre: categoriaNombre });
+      if (syncResult.ok) {
+        mostrarToast('Informe sincronizado con GIE');
+      } else {
+        console.warn('[Nexus] Sync GIE falló:', syncResult.error);
+        mostrarToast('Guardado localmente, pero falló sync con GIE', 'error');
+      }
+    }
+
+    cerrarModal();
+    buscar(searchInput.value);
+  } catch (err) {
+    console.error('[Nexus] Error guardando:', err);
+    mostrarToast(err.message || 'Error al guardar', 'error');
+  } finally {
+    modalGuardar.textContent = 'Guardar';
+  }
+}
+
+async function eliminarRegistro(entidad, pkValue) {
+  const config = configTablas[entidad];
+  if (!confirm(`¿Eliminar ${config.titulo.toLowerCase().slice(0, -1)} permanentemente?`)) return;
+  try {
+    const { error } = await supabase.from(entidad).delete().eq(config.pk, pkValue);
+    if (error) throw error;
+    mostrarToast(`${config.titulo} eliminado`);
+    buscar(searchInput.value);
+  } catch (err) {
+    console.error('[Nexus] Error eliminando:', err);
+    mostrarToast(err.message || 'Error al eliminar', 'error');
+  }
+}
+
+async function sincronizarInformesDesdeGIE() {
+  if (!GIE_ENABLED) {
+    mostrarToast('GIE no está configurado', 'error');
+    return;
+  }
+
+  const btn = resultsActions.querySelector('button:last-child');
+  const originalText = btn?.innerHTML;
+  if (btn) btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:middle;margin-right:4px;animation:spin 1s linear infinite;"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/></svg> Sincronizando...`;
+
+  try {
+    const { data: gieInformes, error } = await obtenerInformesDesdeGIE(100);
+    if (error) throw new Error(error);
+    if (!gieInformes || gieInformes.length === 0) {
+      mostrarToast('No hay informes nuevos en GIE');
+      if (btn && originalText) btn.innerHTML = originalText;
+      return;
+    }
+
+    // Cargar categorías de Nexus para mapeo
+    const { data: nexusCats } = await supabase.from('categorias').select('id_categoria, nombre');
+    const catPorNombre = new Map((nexusCats || []).map(c => [c.nombre, c.id_categoria]));
+
+    let insertados = 0;
+    let actualizados = 0;
+
+    for (const gi of gieInformes) {
+      if (!gi.alumnos?.dni) continue;
+
+      const catNombre = gi.categorias?.nombre || 'Otros';
+      const catId = catPorNombre.get(catNombre) || null;
+
+      const datos = {
+        dni_alumno: gi.alumnos.dni,
+        id_categoria: catId,
+        tipo_falta: gi.tipo_falta || 'Otra',
+        titulo: gi.titulo,
+        instancia: gi.instancia,
+        resumen: gi.resumen,
+        descargo: gi.descargo || null,
+        estado: gi.estado || 'pendiente',
+        fecha_creacion: gi.fecha_creacion,
+        fecha_revision: gi.fecha_revision || null,
+        motivo_rechazo: gi.motivo_rechazo || null,
+        fecha_reunion: gi.fecha_reunion || null,
+        observaciones: gi.observaciones || null,
+        numero: gi.numero || null,
+        gie_id: gi.id || null,
+        gie_synced_at: new Date().toISOString()
+      };
+
+      const { error: upsertError } = await supabase
+        .from('informes')
+        .upsert(datos, { onConflict: 'numero' });
+
+      if (upsertError) {
+        console.warn('[Nexus] Error upsertando informe', gi.numero, upsertError);
+      } else {
+        if (gi.nexus_synced_at) actualizados++;
+        else insertados++;
+      }
+    }
+
+    mostrarToast(`${insertados} informes nuevos, ${actualizados} actualizados desde GIE`);
+    buscar(searchInput.value);
+  } catch (err) {
+    console.error('[Nexus] Error sincronizando desde GIE:', err);
+    mostrarToast(err.message || 'Error al sincronizar con GIE', 'error');
+  } finally {
+    if (btn && originalText) btn.innerHTML = originalText;
+  }
+}
 
 // ========== INICIALIZAR ==========
 async function iniciarApp() {

@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Nexus — Base de Datos Escolar</title>
+    <link rel="icon" type="image/png" href="/Nexus_logo.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -69,6 +70,10 @@
             <button class="nx-sidebar-link active" data-table="alumnos">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
               Alumnos
+            </button>
+            <button class="nx-sidebar-link" data-table="responsables">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+              Responsables
             </button>
             <button class="nx-sidebar-link" data-table="personal">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
@@ -210,6 +215,22 @@
             <p class="nx-footer-text">Nexus — Base de Datos Escolar Maestra</p>
           </footer>
         </main>
+      </div>
+    </div>
+
+    <!-- ========== MODAL CRUD REUTILIZABLE ========== -->
+    <div id="modalCRUD" class="nx-modal hidden">
+      <div class="nx-modal-backdrop" id="modalBackdrop"></div>
+      <div class="nx-modal-card">
+        <div class="nx-modal-header">
+          <h3 id="modalTitulo">Nuevo</h3>
+          <button id="modalCerrar" class="nx-modal-close" aria-label="Cerrar">×</button>
+        </div>
+        <div id="modalBody" class="nx-modal-body"></div>
+        <div class="nx-modal-footer">
+          <button id="modalCancelar" class="nx-login-btn nx-login-btn-outline" style="padding: 10px 20px; font-size: 13px;">Cancelar</button>
+          <button id="modalGuardar" class="nx-login-btn" style="padding: 10px 20px; font-size: 13px;">Guardar</button>
+        </div>
       </div>
     </div>
 

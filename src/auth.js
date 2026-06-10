@@ -3,12 +3,33 @@ import { supabase } from './lib/supabase.js';
 // Estado
 let _perfil = null;
 let _callbacks = [];
+let _cargandoPerfil = false;
+const PERFIL_CACHE_KEY = 'nexus-perfil-cache';
 
 export function getPerfil() { return _perfil; }
 
 export function onAuthChange(cb) {
   _callbacks.push(cb);
   return () => { _callbacks = _callbacks.filter(c => c !== cb); };
+}
+
+function guardarPerfilCache(perfil) {
+  try {
+    localStorage.setItem(PERFIL_CACHE_KEY, JSON.stringify(perfil));
+  } catch (e) { /* noop */ }
+}
+
+function leerPerfilCache() {
+  try {
+    const raw = localStorage.getItem(PERFIL_CACHE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) { return null; }
+}
+
+function limpiarPerfilCache() {
+  try {
+    localStorage.removeItem(PERFIL_CACHE_KEY);
+  } catch (e) { /* noop */ }
 }
 
 function notify(estado, perfil) {
@@ -36,12 +57,17 @@ function withTimeout(promise, ms, label) {
 }
 
 async function cargarPerfil(user) {
+  if (_cargandoPerfil) {
+    console.log('[Nexus Debug] cargarPerfil ya en progreso, ignorando duplicado');
+    return;
+  }
+  _cargandoPerfil = true;
   console.log('[Nexus Debug] cargarPerfil iniciado para user.id:', user.id);
   try {
     const t0 = performance.now();
     const { data, error } = await withTimeout(
       supabase.from('perfiles').select('*').eq('id', user.id).single(),
-      5000,
+      10000,
       'cargarPerfil timeout'
     );
     const t1 = performance.now();
@@ -69,12 +95,15 @@ async function cargarPerfil(user) {
       rol: data.rol,
     };
 
+    guardarPerfilCache(_perfil);
     console.log('[Nexus Debug] cargarPerfil exitoso, perfil:', _perfil);
     notify('signed_in', _perfil);
   } catch (err) {
     console.warn('[Nexus Debug] cargarPerfil excepción/timeout:', err.message);
     _perfil = perfilFallback(user);
     notify('signed_in', _perfil);
+  } finally {
+    _cargandoPerfil = false;
   }
 }
 
@@ -133,6 +162,7 @@ export async function iniciarSesion(email, password) {
 export async function cerrarSesion() {
   await supabase.auth.signOut();
   _perfil = null;
+  limpiarPerfilCache();
   notify('signed_out', null);
 }
 
@@ -141,22 +171,42 @@ export async function restaurarSesion() {
   try {
     const { data: { session } } = await withTimeout(
       supabase.auth.getSession(),
-      5000,
+      8000,
       'getSession timeout'
     );
     console.log('[Nexus Debug] getSession → session:', session ? 'presente' : 'null');
 
     if (!session?.user) {
       console.log('[Nexus Debug] No hay sesión activa');
+      limpiarPerfilCache();
       notify('signed_out', null);
       return null;
     }
 
     console.log('[Nexus Debug] Sesión activa encontrada, user.id:', session.user.id);
     await cargarPerfil(session.user);
+
+    // Si cargarPerfil falló pero hay sesión, usar cache como fallback inmediato
+    if (!_perfil) {
+      const cache = leerPerfilCache();
+      if (cache && cache.id === session.user.id) {
+        console.log('[Nexus Debug] Usando perfil cacheado como fallback');
+        _perfil = cache;
+        notify('signed_in', _perfil);
+      }
+    }
+
     return _perfil;
   } catch (err) {
     console.warn('[Nexus Debug] restaurarSesion error/timeout:', err.message);
+    // Si hay timeout pero tenemos cache, intentar usarlo igual
+    const cache = leerPerfilCache();
+    if (cache) {
+      console.log('[Nexus Debug] Timeout con cache disponible, usando cache');
+      _perfil = cache;
+      notify('signed_in', _perfil);
+      return _perfil;
+    }
     notify('signed_out', null);
     return null;
   }
@@ -164,10 +214,12 @@ export async function restaurarSesion() {
 
 supabase.auth.onAuthStateChange(async (event, session) => {
   console.log('[Nexus Debug] onAuthStateChange → event:', event, '| session:', session ? 'presente' : 'null');
-  if (event === 'SIGNED_IN' && session?.user) {
-    await cargarPerfil(session.user);
-  } else if (event === 'SIGNED_OUT') {
+  // Solo manejar SIGNED_OUT aquí. El inicio lo maneja restaurarSesion() en app.js
+  // para evitar doble ejecución de cargarPerfil.
+  if (event === 'SIGNED_OUT') {
     _perfil = null;
+    _cargandoPerfil = false;
+    limpiarPerfilCache();
     notify('signed_out', null);
   }
 });
