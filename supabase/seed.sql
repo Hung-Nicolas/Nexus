@@ -1,7 +1,11 @@
 -- ============================================================
 -- NEXUS - Seed / Datos de demostración
 -- Ejecutar después de aplicar schema.sql
+-- También puede ejecutarse solo para reiniciar datos (hace TRUNCATE primero)
 -- ============================================================
+
+-- Limpiar datos previos
+TRUNCATE public.informes, public.asistencias, public.evaluaciones, public.personal_materia, public.alumnos, public.personal, public.materias, public.cursos RESTART IDENTITY CASCADE;
 
 INSERT INTO public.cursos (anio, division, turno, especialidad) VALUES
 (1, '1°', 'Mañana', 'Informática'),

@@ -1,4 +1,5 @@
 import { supabase } from './lib/supabase.js';
+import { iniciarSesion, registrarUsuario, cerrarSesion, restaurarSesion, getPerfil, onAuthChange } from './auth.js';
 import './styles.css';
 
 // Estado
@@ -8,11 +9,23 @@ let filtrosActuales = {};
 let opcionesFiltros = {};
 
 // Referencias DOM
+const loginScreen = document.getElementById('loginScreen');
+const appContainer = document.getElementById('appContainer');
+const loginForm = document.getElementById('loginForm');
+const registerForm = document.getElementById('registerForm');
+const loginError = document.getElementById('loginError');
+const loginBtnText = document.getElementById('loginBtnText');
+const regBtnText = document.getElementById('regBtnText');
 const sidebar = document.getElementById('sidebar');
 const sidebarOverlay = document.getElementById('sidebarOverlay');
 const openSidebarBtn = document.getElementById('openSidebar');
 const closeSidebarBtn = document.getElementById('closeSidebar');
 const sidebarFilters = document.getElementById('sidebarFilters');
+const sidebarUser = document.getElementById('sidebarUser');
+const userAvatar = document.getElementById('userAvatar');
+const userName = document.getElementById('userName');
+const userRole = document.getElementById('userRole');
+const logoutBtn = document.getElementById('logoutBtn');
 const searchInput = document.getElementById('searchInput');
 const resultsGrid = document.getElementById('resultsGrid');
 const resultsTitle = document.getElementById('resultsTitle');
@@ -139,6 +152,93 @@ function mostrarToast(mensaje, tipo = 'success') {
   }, 3000);
 }
 
+// ========== AUTH UI ==========
+function showLogin() {
+  loginScreen.classList.remove('hidden');
+  appContainer.classList.add('hidden');
+}
+
+function showApp() {
+  loginScreen.classList.add('hidden');
+  appContainer.classList.remove('hidden');
+}
+
+function updateUserUI(perfil) {
+  if (!perfil) {
+    sidebarUser.style.display = 'none';
+    return;
+  }
+  sidebarUser.style.display = 'flex';
+  userAvatar.textContent = `${perfil.nombre?.[0] || ''}${perfil.apellido?.[0] || ''}`;
+  userName.textContent = `${perfil.apellido}, ${perfil.nombre}`;
+  userRole.textContent = perfil.rol || 'viewer';
+}
+
+// Login form
+loginForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const email = document.getElementById('loginEmail').value.trim();
+  const password = document.getElementById('loginPassword').value;
+  loginBtnText.textContent = 'Ingresando...';
+  loginError.classList.remove('show');
+
+  try {
+    await iniciarSesion(email, password);
+    loginBtnText.textContent = 'Ingresar';
+  } catch (err) {
+    loginBtnText.textContent = 'Ingresar';
+    loginError.textContent = err.message || 'Credenciales inválidas';
+    loginError.classList.add('show');
+  }
+});
+
+// Register form
+registerForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const email = document.getElementById('regEmail').value.trim();
+  const password = document.getElementById('regPassword').value;
+  const nombre = document.getElementById('regNombre').value.trim();
+  const apellido = document.getElementById('regApellido').value.trim();
+  regBtnText.textContent = 'Creando...';
+  loginError.classList.remove('show');
+
+  try {
+    await registrarUsuario(email, password, nombre, apellido);
+    regBtnText.textContent = 'Crear cuenta';
+    loginError.textContent = 'Cuenta creada. Revisá tu email para confirmar (si está activado) o ingresá directamente.';
+    loginError.style.color = '#4ade80';
+    loginError.style.borderColor = 'rgba(74,222,128,0.2)';
+    loginError.style.background = 'rgba(74,222,128,0.08)';
+    loginError.classList.add('show');
+    registerForm.reset();
+  } catch (err) {
+    regBtnText.textContent = 'Crear cuenta';
+    loginError.textContent = err.message || 'Error al registrar';
+    loginError.style.color = '';
+    loginError.style.borderColor = '';
+    loginError.style.background = '';
+    loginError.classList.add('show');
+  }
+});
+
+// Logout
+logoutBtn.addEventListener('click', async () => {
+  await cerrarSesion();
+});
+
+// Auth state handler
+onAuthChange((estado, perfil) => {
+  if (estado === 'signed_in' && perfil) {
+    showApp();
+    updateUserUI(perfil);
+    iniciarApp();
+  } else {
+    showLogin();
+    updateUserUI(null);
+  }
+});
+
+// ========== APP LOGIC ==========
 // Sidebar mobile
 function openSidebar() {
   sidebar.classList.add('open');
@@ -187,25 +287,17 @@ async function cargarStats() {
 // Cargar opciones de filtros dinámicas desde la BD
 async function cargarOpcionesFiltros() {
   try {
-    // Especialidades únicas de alumnos
     const { data: espAlumnos } = await supabase.from('alumnos').select('especialidad').not('especialidad', 'is', null);
-    const especialidadesAlumnos = [...new Set((espAlumnos || []).map(a => a.especialidad).filter(Boolean))].sort();
-    opcionesFiltros['alumnos.especialidad'] = especialidadesAlumnos;
+    opcionesFiltros['alumnos.especialidad'] = [...new Set((espAlumnos || []).map(a => a.especialidad).filter(Boolean))].sort();
 
-    // Divisiones únicas de alumnos
     const { data: divAlumnos } = await supabase.from('alumnos').select('division').not('division', 'is', null);
-    const divisionesAlumnos = [...new Set((divAlumnos || []).map(a => a.division).filter(Boolean))].sort();
-    opcionesFiltros['alumnos.division'] = divisionesAlumnos;
+    opcionesFiltros['alumnos.division'] = [...new Set((divAlumnos || []).map(a => a.division).filter(Boolean))].sort();
 
-    // Especialidades únicas de cursos
     const { data: espCursos } = await supabase.from('cursos').select('especialidad').not('especialidad', 'is', null);
-    const especialidadesCursos = [...new Set((espCursos || []).map(c => c.especialidad).filter(Boolean))].sort();
-    opcionesFiltros['cursos.especialidad'] = especialidadesCursos;
+    opcionesFiltros['cursos.especialidad'] = [...new Set((espCursos || []).map(c => c.especialidad).filter(Boolean))].sort();
 
-    // Años únicos de cursos
     const { data: aniosCursos } = await supabase.from('cursos').select('anio').order('anio');
-    const anios = [...new Set((aniosCursos || []).map(c => c.anio).filter(Boolean))].sort((a, b) => a - b);
-    opcionesFiltros['cursos.anio'] = anios.map(a => String(a));
+    opcionesFiltros['cursos.anio'] = [...new Set((aniosCursos || []).map(c => c.anio).filter(Boolean))].sort((a, b) => a - b).map(String);
   } catch (err) {
     console.error('[Nexus] Error cargando opciones de filtros:', err);
   }
@@ -217,15 +309,10 @@ function renderizarFiltros() {
   sidebarFilters.innerHTML = '';
 
   if (!config.filtros || config.filtros.length === 0) {
-    sidebarFilters.innerHTML = `
-      <div style="padding: 20px; text-align: center; color: var(--nx-text-dim); font-size: 13px;">
-        No hay filtros disponibles para esta tabla.
-      </div>
-    `;
+    sidebarFilters.innerHTML = `<div style="padding:20px;text-align:center;color:var(--nx-text-dim);font-size:13px;">No hay filtros disponibles.</div>`;
     return;
   }
 
-  // Título de sección
   const header = document.createElement('div');
   header.className = 'nx-sidebar-label';
   header.style.marginTop = '8px';
@@ -244,7 +331,6 @@ function renderizarFiltros() {
     const valorActual = filtrosActuales[filtro.key];
 
     if (filtro.tipo === 'select') {
-      // Combinar opciones estáticas con dinámicas
       let opciones = filtro.opciones;
       const keyDinamica = `${tablaActual}.${filtro.key}`;
       if (opcionesFiltros[keyDinamica] && opcionesFiltros[keyDinamica].length > 0) {
@@ -254,14 +340,12 @@ function renderizarFiltros() {
       const select = document.createElement('select');
       select.className = 'nx-filter-select';
       select.dataset.filtro = filtro.key;
-      select.innerHTML = `
-        <option value="">Todos</option>
-        ${opciones.map(op => {
+      select.innerHTML = `<option value="">Todos</option>` +
+        opciones.map(op => {
           const val = typeof op === 'string' ? op : op.value;
           const lab = typeof op === 'string' ? capitalizar(op) : op.label;
           return `<option value="${escapeHtml(val)}" ${valorActual === val ? 'selected' : ''}>${escapeHtml(lab)}</option>`;
-        }).join('')}
-      `;
+        }).join('');
       select.addEventListener('change', (e) => {
         filtrosActuales[filtro.key] = e.target.value || undefined;
         buscar(searchInput.value);
@@ -278,7 +362,6 @@ function renderizarFiltros() {
         if (valorActual === op.value) chip.classList.add('active');
         chip.addEventListener('click', () => {
           const yaActivo = chip.classList.contains('active');
-          // Desactivar todos los chips de este grupo
           chipsContainer.querySelectorAll('.nx-filter-chip').forEach(c => c.classList.remove('active'));
           if (!yaActivo) {
             chip.classList.add('active');
@@ -296,15 +379,11 @@ function renderizarFiltros() {
     sidebarFilters.appendChild(group);
   });
 
-  // Botón limpiar filtros
   if (Object.keys(filtrosActuales).length > 0) {
     const resetBtn = document.createElement('button');
     resetBtn.className = 'nx-filter-reset';
     resetBtn.type = 'button';
-    resetBtn.innerHTML = `
-      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 12"/><path d="M3 3v9h9"/></svg>
-      Limpiar filtros
-    `;
+    resetBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 12"/><path d="M3 3v9h9"/></svg> Limpiar filtros`;
     resetBtn.addEventListener('click', () => {
       filtrosActuales = {};
       renderizarFiltros();
@@ -319,27 +398,12 @@ async function buscar(query) {
   const config = configTablas[tablaActual];
   resultsTitle.textContent = config.titulo;
 
-  const tieneFiltrosActivos = Object.keys(filtrosActuales).some(k => filtrosActuales[k] !== undefined);
-
-  if ((!query || query.trim().length < 1) && !tieneFiltrosActivos) {
-    resultsGrid.innerHTML = `
-      <div class="nx-empty">
-        <div class="nx-empty-icon">
-          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-        </div>
-        <p class="nx-empty-text">Escribí en el buscador o seleccioná filtros para encontrar ${config.titulo.toLowerCase()}</p>
-      </div>
-    `;
-    resultsCount.textContent = '';
-    return;
-  }
-
   resultsGrid.innerHTML = `
     <div class="nx-empty">
       <div class="nx-empty-icon" style="animation: nx-pulse 1.5s infinite;">
         <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
       </div>
-      <p class="nx-empty-text">Buscando...</p>
+      <p class="nx-empty-text">Cargando...</p>
     </div>
   `;
 
@@ -349,13 +413,12 @@ async function buscar(query) {
       .from(tablaActual)
       .select(config.campos)
       .order(config.orden.column, { ascending: config.orden.ascending })
-      .limit(100);
+      .limit(50);
 
     // Filtro de búsqueda texto
     if (termino && termino.length >= 1) {
       const esNumero = /^\d+$/.test(termino);
 
-      // Si es número, buscar por igualdad en campos numéricos
       if (esNumero) {
         const num = parseInt(termino, 10);
         if (tablaActual === 'alumnos' || tablaActual === 'personal') {
@@ -365,7 +428,6 @@ async function buscar(query) {
         }
       }
 
-      // Búsqueda textual (escapando wildcards de ILIKE)
       if (config.buscarEn.length > 0) {
         const terminoEscapado = termino
           .replace(/\\/g, '\\\\')
@@ -388,7 +450,7 @@ async function buscar(query) {
       }
     });
 
-    // Para alumnos y personal, por defecto solo activos (a menos que se filtre explícitamente)
+    // Por defecto solo activos en alumnos/personal
     if ((tablaActual === 'alumnos' || tablaActual === 'personal') && !filtrosActuales.activo) {
       supaQuery = supaQuery.eq('activo', true);
     }
@@ -405,7 +467,7 @@ async function buscar(query) {
           <div class="nx-empty-icon">
             <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
           </div>
-          <p class="nx-empty-text">No se encontraron resultados${termino ? ` para "${escapeHtml(termino)}"` : ''}</p>
+          <p class="nx-empty-text">${termino ? `No se encontraron resultados para "${escapeHtml(termino)}"` : 'No hay registros para mostrar'}</p>
         </div>
       `;
       return;
@@ -432,7 +494,7 @@ async function buscar(query) {
     }).join('');
   } catch (err) {
     console.error('[Nexus] Error en búsqueda:', err);
-    mostrarToast('Error al buscar. Revisá la consola.', 'error');
+    mostrarToast('Error al cargar datos. Revisá la consola.', 'error');
     resultsGrid.innerHTML = `
       <div class="nx-empty">
         <div class="nx-empty-icon" style="color:#ef4444">
@@ -449,13 +511,10 @@ function cambiarTabla(nuevaTabla) {
   tablaActual = nuevaTabla;
   filtrosActuales = {};
 
-  // Actualizar sidebar links
   sidebarLinks.forEach(link => {
     link.classList.toggle('active', link.dataset.table === nuevaTabla);
   });
 
-  // Actualizar placeholder del buscador
-  const config = configTablas[tablaActual];
   const placeholders = {
     alumnos: 'Buscar por nombre, apellido, DNI, email...',
     personal: 'Buscar por nombre, apellido, rol, email...',
@@ -464,22 +523,9 @@ function cambiarTabla(nuevaTabla) {
   };
   searchInput.placeholder = placeholders[tablaActual];
 
-  // Renderizar filtros nuevos
   renderizarFiltros();
+  buscar('');
 
-  // Limpiar resultados previos
-  resultsTitle.textContent = config.titulo;
-  resultsCount.textContent = '';
-  resultsGrid.innerHTML = `
-    <div class="nx-empty">
-      <div class="nx-empty-icon">
-        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-      </div>
-      <p class="nx-empty-text">Escribí en el buscador o seleccioná filtros para encontrar ${config.titulo.toLowerCase()}</p>
-    </div>
-  `;
-
-  // Cerrar sidebar en móvil al cambiar de tabla
   if (window.innerWidth <= 1024) {
     closeSidebar();
   }
@@ -503,25 +549,22 @@ searchInput.addEventListener('keydown', (e) => {
   }
 });
 
-// Inicializar
-async function init() {
+// Inicializar app
+async function iniciarApp() {
   await cargarOpcionesFiltros();
   renderizarFiltros();
   cargarStats();
-
-  // Verificar conexión
-  try {
-    const { error } = await supabase.from('alumnos').select('dni', { head: true, count: 'exact' }).limit(1);
-    if (error) {
-      console.error('[Nexus] Error de conexión:', error);
-      mostrarToast('No se pudo conectar a Supabase. Revisá las credenciales.', 'error');
-    } else {
-      console.log('[Nexus] Conexión exitosa');
-    }
-  } catch (err) {
-    console.error('[Nexus] Error inicial:', err);
-    mostrarToast('Error de conexión con Supabase', 'error');
-  }
+  buscar(''); // ← Lista por defecto al iniciar
 }
 
-init();
+// Inicializar auth al cargar página
+(async () => {
+  const perfil = await restaurarSesion();
+  if (perfil) {
+    showApp();
+    updateUserUI(perfil);
+    iniciarApp();
+  } else {
+    showLogin();
+  }
+})();
