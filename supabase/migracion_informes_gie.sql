@@ -86,7 +86,15 @@ CREATE INDEX IF NOT EXISTS idx_informes_estado ON public.informes(estado);
 CREATE INDEX IF NOT EXISTS idx_informes_categoria ON public.informes(id_categoria);
 CREATE INDEX IF NOT EXISTS idx_informes_numero ON public.informes(numero);
 
--- 4. CATEGORIAS
+-- 4. PERSONAL DE DEMO (si no existe)
+INSERT INTO public.personal (dni, nombre, apellido, email, rol) VALUES
+(20111001, 'Roberto', 'García',    'r.garcia@escuela.edu',  'directivo'),
+(20111002, 'María',   'López',     'm.lopez@escuela.edu',   'docente'),
+(20111003, 'Carlos',  'Fernández', 'c.fernandez@escuela.edu', 'preceptor'),
+(20111004, 'Ana',     'Martínez',  'a.martinez@escuela.edu',  'docente')
+ON CONFLICT DO NOTHING;
+
+-- 5. CATEGORIAS
 INSERT INTO public.categorias (nombre, color) VALUES
 ('Conducta',    '#ef4444'),
 ('Disciplina',  '#f97316'),
@@ -95,7 +103,7 @@ INSERT INTO public.categorias (nombre, color) VALUES
 ('Otros',       '#94a3b8')
 ON CONFLICT DO NOTHING;
 
--- 5. INFORMES DE EJEMPLO (schema completo)
+-- 6. INFORMES DE EJEMPLO (schema completo)
 INSERT INTO public.informes (dni_alumno, id_categoria, tipo_falta, titulo, instancia, resumen, estado, dni_creador, dni_revisor, fecha, fecha_creacion, fecha_revision, fecha_reunion, numero, observaciones) VALUES
 (40000014, 1, 'Conducta', 'Discusión verbal con compañero', 'grave', 'Discusión verbal elevada con un compañero que interrumpió las clases aledañas.', 'archivado', 20111002, 20111003, '2026-03-20', '2026-03-20 09:15:00+00', '2026-03-21 10:00:00+00', NULL, 202600001, 'Ambos alumnos fueron llamados a coordinación.'),
 (40000014, 2, 'Disciplina', 'Encendido de fuego en patio', 'muy_grave', 'El alumno encendió una hoja de papel en el patio durante el recreo, poniendo en riesgo la seguridad.', 'archivado', 20111003, 20111001, '2026-04-14', '2026-04-14 12:30:00+00', '2026-04-15 10:00:00+00', NULL, 202600002, 'Se aplicó sanción de suspensión de 2 días.'),
