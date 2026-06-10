@@ -1,0 +1,21 @@
+{
+  "name": "nexus",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Base de datos escolar maestra - Nexus. Expone datos de alumnos, personal, cursos, materias, evaluaciones, asistencias e informes vía Supabase.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "db:types": "supabase gen types typescript --project-id tu-project-id --schema public > src/lib/database.types.ts"
+  },
+  "devDependencies": {
+    "supabase": "^2.98.1",
+    "typescript": "^5.6.0",
+    "vite": "^5.4.10"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.104.0"
+  }
+}
