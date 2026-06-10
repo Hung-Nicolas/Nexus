@@ -185,11 +185,13 @@ loginForm.addEventListener('submit', async (e) => {
   e.preventDefault();
   const email = document.getElementById('loginEmail').value.trim();
   const password = document.getElementById('loginPassword').value;
+  console.log('[Nexus Debug] Form submit → email:', email);
   loginBtnText.textContent = 'Ingresando...';
   loginError.classList.remove('show');
 
   try {
-    await iniciarSesion(email, password);
+    const perfil = await iniciarSesion(email, password);
+    console.log('[Nexus Debug] iniciarSesion retornó perfil:', perfil);
   } catch (err) {
     console.error('[Nexus] Login error:', err);
 
@@ -221,6 +223,7 @@ logoutBtn.addEventListener('click', async () => {
 
 // Auth state
 onAuthChange((estado, perfil) => {
+  console.log('[Nexus Debug] onAuthChange callback → estado:', estado, '| perfil:', perfil ? (perfil.email || 'sin email') : null);
   if (estado === 'signed_in' && perfil) {
     showApp();
     updateUserUI(perfil);
