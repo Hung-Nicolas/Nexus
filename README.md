@@ -1,17 +1,17 @@
 <div align="center">
-  <img src="src/assets/Nexus_logo.png" width="120" alt="Nexus Logo">
+  <img src="src/assets/Nexus_wordmark.png" width="120" alt="Nexus Logo">
   <br><br>
   
   <p><strong>Base de Datos Escolar Maestra</strong></p>
   <p>Backend centralizado en Supabase con buscador web integrado.<br>
-  Conecta alumnos, personal, cursos, materias, evaluaciones, asistencias e informes en un solo lugar.</p>
+  Conecta alumnos, personal, cursos, materias, evaluaciones y asistencias en un solo lugar.</p>
 </div>
 
 ---
 
 ## Qué es Nexus
 
-Nexus es la capa de datos escolar central del ecosistema. Otros proyectos —como <strong>GIE</strong> (Gestor de Informes Escolares) y desarrollos de equipos externos— consumen y sincronizan sus datos desde esta base de datos maestra, evitando duplicación y garantizando una única fuente de verdad.
+Nexus es la capa de datos escolar central del ecosistema. Otros proyectos —como <strong>GIE</strong> (Gestor de Informes Escolares) y desarrollos de equipos externos— se conectan a través del <strong>API Gateway</strong> de Nexus, un sistema de API keys con permisos granulares que garantiza acceso controlado sin exponer credenciales de Supabase.
 
 El proyecto incluye tanto el <strong>schema PostgreSQL</strong> (tablas, relaciones, RLS e índices) como un <strong>frontend de búsqueda</strong> con diseño propio, filtros por tabla y estadísticas en tiempo real.
 
@@ -27,7 +27,6 @@ El proyecto incluye tanto el <strong>schema PostgreSQL</strong> (tablas, relacio
 | <strong>Materias</strong> | Asignaturas del plan de estudios |
 | <strong>Evaluaciones</strong> | Notas por alumno y materia (parciales, finales, TPs, etc.) |
 | <strong>Asistencias</strong> | Registro diario de presente, ausente, tarde, justificado |
-| <strong>Informes</strong> | Observaciones y seguimientos del personal hacia alumnos |
 
 Las tablas están relacionadas mediante claves foráneas y cuentan con <strong>Row Level Security</strong> para controlar el acceso por rol.
 
@@ -47,15 +46,18 @@ Una interfaz dark-mode inspirada en la identidad visual de Nexus permite explora
 
 ## Conexión con otros proyectos
 
-Nexus no trabaja solo. Proyectos como <strong>GIE</strong> se sincronizan periódicamente para mantener sus alumnos actualizados desde la fuente maestra, mientras conservan sus propias tablas de dominio (informes disciplinarios, usuarios, historial, etc.).
+Nexus no trabaja solo. Proyectos como <strong>GIE</strong> (Gestor de Informes Escolares) consumen datos maestros a través de la Edge Function <code>api-nexus</code> usando una API key propia, sin acceder directamente a la base de datos.
 
-Esto permite que cada equipo evolucione su aplicación sin depender del schema de los demás, pero siempre alineados en los datos base.
+Cada proyecto externo recibe una <strong>API key independiente</strong> con permisos declarativos por tabla y operación. Esto permite que cada equipo evolucione su aplicación sin depender del schema de los demás, siempre alineados en los datos base, y sin compartir credenciales de Supabase.
+
+📖 Ver <a href="docs/api-externos.md">docs/api-externos.md</a> para integrar tu proyecto.  
+🎓 Ver <a href="docs/faq-para-companeros.md">docs/faq-para-companeros.md</a> si es la primera vez que conectás un proyecto a una API.
 
 ---
 
 ## Stack
 
-Supabase · PostgreSQL · Vite · JavaScript vanilla · CSS3
+Supabase · PostgreSQL · Edge Functions · Vite · JavaScript vanilla · CSS3
 
 ---
 

@@ -27,3 +27,6 @@ AGENTS.md
 # SQL files (only schema.sql is tracked)
 supabase/*.sql
 !supabase/schema.sql
+
+.gitignore
+docs/*

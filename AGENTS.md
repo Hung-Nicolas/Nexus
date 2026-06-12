@@ -6,7 +6,7 @@
 
 ## Resumen del proyecto
 
-**Nexus** es una *Base de Datos Escolar Maestra*: un backend centralizado en Supabase (PostgreSQL) con un frontend web de búsqueda integrado. Expone datos de alumnos, personal, cursos, materias, evaluaciones, asistencias e informes. Otros proyectos del ecosistema (como GIE — Gestor de Informes Escolares) consumen y sincronizan sus datos desde esta fuente única de verdad.
+**Nexus** es una *Base de Datos Escolar Maestra*: un backend centralizado en Supabase (PostgreSQL) con un frontend web de búsqueda integrado. Expone datos maestros de alumnos, personal, cursos, materias, evaluaciones y asistencias. Otros proyectos del ecosistema (como GIE — Gestor de Informes Escolares) se conectan a través del **API Gateway** (`api-nexus`, una Edge Function de Supabase) que expone datos de forma controlada mediante API keys independientes. Cada proyecto externo tiene sus propios permisos granulares por tabla y operación.
 
 El sistema es **cerrado**: solo accede personal autorizado con rol `regente`. No hay registros públicos.
 
@@ -18,8 +18,9 @@ El sistema es **cerrado**: solo accede personal autorizado con rol `regente`. No
 |------|------------|
 | Frontend | JavaScript vanilla (ES modules), CSS3, HTML5 |
 | Build tool | Vite 5.4.10 |
-| Backend / DB | Supabase (PostgreSQL + Auth) |
+| Backend / DB | Supabase (PostgreSQL + Auth + Edge Functions) |
 | Cliente DB | `@supabase/supabase-js` 2.104 |
+| API Gateway | Edge Function `api-nexus` (Deno) |
 | Tipos | TypeScript 5.6 (solo para tipos de Supabase) |
 | Package manager | npm |
 
@@ -46,9 +47,17 @@ El sistema es **cerrado**: solo accede personal autorizado con rol `regente`. No
 │       ├── Nexus_logo.png
 │       └── Nexus_wordmark.png
 ├── supabase/
-│   ├── schema.sql          # Tablas, índices y políticas RLS del schema escolar
-│   ├── migracion_auth.sql  # Tabla perfiles, triggers y funciones RPC para auth
-│   └── seed.sql            # Datos de demostración
+│   ├── schema.sql                 # Tablas, índices y políticas RLS del schema escolar
+│   ├── migracion_auth.sql         # Tabla perfiles, triggers y funciones RPC para auth
+│   ├── migracion_proyectos_api.sql # Tabla proyectos, api_logs y gateway API
+│   ├── functions/
+│   │   └── api-nexus/
+│   │       └── index.ts          # Edge Function: gateway único para proyectos externos
+│   └── seed.sql                  # Datos de demostración
+├── docs/
+│   ├── DER.md                   # Diagrama entidad-relación
+│   ├── api-externos.md          # Documentación técnica para proyectos que consumen Nexus
+│   └── faq-para-companeros.md   # FAQ para compañeros sin experiencia en APIs |
 └── dist/                   # Build de producción (generado por Vite)
 ```
 
@@ -104,11 +113,13 @@ npm install
 
 ### Backend (Supabase)
 
-- **Schema escolar** (`supabase/schema.sql`): 8 tablas principales con claves foráneas, índices y RLS.
-- **Auth** (`supabase/migracion_auth.sql`): tabla `perfiles`, trigger `on_auth_user_created_nexus` y funciones RPC (`listar_usuarios_completos`, `eliminar_usuario_completo`, `actualizar_password_usuario`, `sincronizar_perfil`).
+- **Schema escolar** (`supabase/schema.sql`): tablas principales con claves foráneas, índices y RLS.
+- **Auth** (`supabase/migracion_auth.sql`): tabla `perfiles`, trigger `on_auth_user_created_nexus` y funciones RPC de gestión de usuarios.
+- **API Gateway** (`supabase/migracion_proyectos_api.sql` + Edge Function `api-nexus`): registro de proyectos externos, API keys, permisos granulares y auditoría.
 - **RLS**: todas las tablas tienen Row Level Security habilitado.
-  - `SELECT`: abierto a `anon` y `authenticated`.
-  - `INSERT/UPDATE/DELETE`: requiere rol `authenticated`.
+  - `SELECT`: solo `authenticated` (el frontend de Nexus). `anon` fue removido.
+  - `INSERT/UPDATE/DELETE`: requiere `authenticated`.
+  - `proyectos` y `api_logs`: solo regentes (`rol = 'regente'`).
 
 ---
 
@@ -136,8 +147,9 @@ npm install
 | `personal_materia` | Relación N:M entre personal y materias |
 | `evaluaciones` | Notas por alumno y materia |
 | `asistencias` | Registro diario (presente, ausente, tarde, justificado) |
-| `informes` | Observaciones del personal hacia alumnos |
 | `perfiles` | Perfiles de usuario (vinculados a `auth.users`) |
+| `proyectos` | Sistemas externos autorizados con API key y permisos JSONB |
+| `api_logs` | Auditoría de requests al gateway (`api-nexus`) |
 
 ---
 
@@ -155,9 +167,14 @@ El proyecto **no tiene tests automáticos** configurados. No hay Jest, Vitest, P
    - Supabase Storage (hosting estático)
    - Cualquier servidor de archivos estáticos
 3. Asegurarse de que las variables de entorno de Supabase estén disponibles en tiempo de build (Vite las inyecta en el bundle).
-4. Aplicar las migraciones SQL en el proyecto de Supabase:
+4. Deployar la Edge Function:
+   ```bash
+   supabase functions deploy api-nexus
+   ```
+5. Aplicar las migraciones SQL en el proyecto de Supabase:
    - Primero `supabase/schema.sql`
    - Luego `supabase/migracion_auth.sql`
+   - Luego `supabase/migracion_proyectos_api.sql`
    - Opcionalmente `supabase/seed.sql` para datos de prueba.
 
 ---
@@ -165,7 +182,8 @@ El proyecto **no tiene tests automáticos** configurados. No hay Jest, Vitest, P
 ## Consideraciones de seguridad
 
 - **Nunca commitear** `.env` ni `dist/` (ya están en `.gitignore`).
-- El `anon key` de Supabase viaja al cliente — eso es correcto porque RLS protege las tablas.
+- El `anon key` de Supabase **solo viaja al cliente del frontend de Nexus**. Los proyectos externos NO reciben la `anon key`; acceden únicamente vía la Edge Function `api-nexus` con API keys propias.
+- Cada proyecto externo tiene una API key independiente (`nx_...`) almacenada en `proyectos`, con permisos granulares por tabla y operación. Las keys son revocables y rotables vía `rotar_api_key()`.
 - Las funciones RPC usan `SECURITY DEFINER` para poder operar sobre `auth.users`.
 - `eliminar_usuario_completo` y `actualizar_password_usuario` bloquean la auto-eliminación y auto-cambio de contraseña.
 - En Supabase Dashboard se recomienda desactivar *"Confirm email"* en Authentication → Providers → Email, para que los regentes creen usuarios sin verificación.
@@ -176,5 +194,9 @@ El proyecto **no tiene tests automáticos** configurados. No hay Jest, Vitest, P
 
 - Si necesitás agregar una nueva tabla al buscador, extendé `configTablas` en `src/app.js`.
 - Si modificás el schema de Supabase, regenerá los tipos con `npm run db:types` (requiere tener el CLI de Supabase configurado con el `project-id` correcto).
+- Si agregás una tabla nueva que deba ser accesible por proyectos externos, actualizá:
+  - `TABLAS_PERMITIDAS` en `supabase/functions/api-nexus/index.ts`
+  - Las políticas RLS en `supabase/schema.sql`
+  - La documentación en `docs/api-externos.md`
 - No asumas que hay React, Vue ni ningún framework. Todo es vanilla JS.
 - Los estilos están todos en un solo archivo (`src/styles.css`). Si agregás componentes nuevos, seguí el prefijo `nx-`.

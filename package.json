@@ -2,7 +2,7 @@
   "name": "nexus",
   "private": true,
   "version": "1.0.0",
-  "description": "Base de datos escolar maestra - Nexus. Expone datos de alumnos, personal, cursos, materias, evaluaciones, asistencias e informes vía Supabase.",
+  "description": "Base de datos escolar maestra - Nexus. Expone datos de alumnos, personal, cursos, materias, evaluaciones y asistencias vía Supabase.",
   "type": "module",
   "scripts": {
     "dev": "vite",

@@ -1,6 +1,6 @@
 import { supabase } from './lib/supabase.js';
 import { iniciarSesion, cerrarSesion, restaurarSesion, getPerfil, onAuthChange, listarUsuarios, crearUsuario, eliminarUsuario, cambiarPasswordUsuario } from './auth.js';
-import { GIE_ENABLED, enviarInformeAGIE } from './gie-client.js';
+import { NEXUS_INFO } from './info-nexus.js';
 import './styles.css';
 
 // Estado
@@ -9,6 +9,10 @@ let seccionActual = 'buscador';
 let timeoutBusqueda = null;
 let filtrosActuales = {};
 let opcionesFiltros = {};
+let busquedaId = 0;
+let abortControllerBusqueda = null;
+const cacheResultados = new Map(); // clave: "tabla|termino|filtrosJSON" → { data, timestamp }
+const CACHE_TTL_MS = 30000; // 30 segundos de cache
 let usuariosLista = [];
 let mostrarFormUsuario = false;
 
@@ -18,25 +22,43 @@ const appContainer = document.getElementById('appContainer');
 const loginForm = document.getElementById('loginForm');
 const loginError = document.getElementById('loginError');
 const loginBtnText = document.getElementById('loginBtnText');
+const btnLoginInfo = document.getElementById('btnLoginInfo');
+const loginInfoPanel = document.getElementById('loginInfoPanel');
+const loginInfoNovedades = document.getElementById('loginInfoNovedades');
+const loginInfoAcerca = document.getElementById('loginInfoAcerca');
 const sidebar = document.getElementById('sidebar');
 const sidebarOverlay = document.getElementById('sidebarOverlay');
 const openSidebarBtn = document.getElementById('openSidebar');
 const closeSidebarBtn = document.getElementById('closeSidebar');
 const sidebarFilters = document.getElementById('sidebarFilters');
+const mainFilters = document.getElementById('mainFilters');
 const sidebarUser = document.getElementById('sidebarUser');
 const userAvatar = document.getElementById('userAvatar');
 const userName = document.getElementById('userName');
 const userRole = document.getElementById('userRole');
 const logoutBtn = document.getElementById('logoutBtn');
+const modalLogout = document.getElementById('modalLogout');
+const modalLogoutBackdrop = document.getElementById('modalLogoutBackdrop');
+const btnCancelarLogout = document.getElementById('btnCancelarLogout');
+const btnConfirmarLogout = document.getElementById('btnConfirmarLogout');
+const logoutCountdown = document.getElementById('logoutCountdown');
 const searchInput = document.getElementById('searchInput');
 const resultsGrid = document.getElementById('resultsGrid');
 const resultsTitle = document.getElementById('resultsTitle');
 const resultsCount = document.getElementById('resultsCount');
 const resultsActions = document.getElementById('resultsActions');
-const statsGrid = document.getElementById('statsGrid');
 const sidebarLinks = document.querySelectorAll('.nx-sidebar-link');
 const sectionBuscador = document.getElementById('sectionBuscador');
 const sectionUsuarios = document.getElementById('sectionUsuarios');
+const sectionDashboard = document.getElementById('sectionDashboard');
+const sectionInfo = document.getElementById('sectionInfo');
+const infoSubtitle = document.getElementById('infoSubtitle');
+const infoVersionNovedades = document.getElementById('infoVersionNovedades');
+const infoNovedades = document.getElementById('infoNovedades');
+const infoAcerca = document.getElementById('infoAcerca');
+const loginInfoVersionNovedades = document.getElementById('loginInfoVersionNovedades');
+const dashboardStatsGrid = document.getElementById('dashboardStatsGrid');
+const dashboardUltimosAlumnos = document.getElementById('dashboardUltimosAlumnos');
 const btnNuevoUsuario = document.getElementById('btnNuevoUsuario');
 const formUsuarioContainer = document.getElementById('formUsuarioContainer');
 const btnGuardarUsuario = document.getElementById('btnGuardarUsuario');
@@ -54,11 +76,13 @@ const modalGuardar = document.getElementById('modalGuardar');
 const modalBackdrop = document.getElementById('modalBackdrop');
 let modalOnGuardar = null;
 
+
+
 // Configuración por tabla
 const configTablas = {
   alumnos: {
     titulo: 'Alumnos',
-    campos: 'dni, nombre, apellido, email, especialidad, division, turno, email_padre, telefono, id_curso',
+    campos: 'dni, nombre, apellido, email, especialidad, division, turno, email_padre, telefono, fecha_nacimiento, genero, nacionalidad, id_domicilio, id_curso',
     orden: { column: 'apellido', ascending: true },
     buscarEn: ['nombre', 'apellido', 'email'],
     filtros: [
@@ -78,6 +102,10 @@ const configTablas = {
       { key: 'turno', label: 'Turno', tipo: 'select', opciones: ['Mañana', 'Tarde', 'Noche'], required: true },
       { key: 'email_padre', label: 'Email del padre/tutor', tipo: 'email' },
       { key: 'telefono', label: 'Teléfono', tipo: 'text' },
+      { key: 'fecha_nacimiento', label: 'Fecha de nacimiento', tipo: 'date' },
+      { key: 'genero', label: 'Género', tipo: 'select', opciones: ['masculino', 'femenino', 'no_binario', 'otro', 'prefiero_no_decirlo'] },
+      { key: 'nacionalidad', label: 'Nacionalidad', tipo: 'text' },
+      { key: 'id_domicilio', label: 'Domicilio', tipo: 'select', tabla: 'domicilios', labelField: 'calle,numero,localidad', valueField: 'id_domicilio' },
       { key: 'id_curso', label: 'Curso', tipo: 'select', tabla: 'cursos', labelField: 'anio,division,turno' },
     ],
     render: (row) => ({
@@ -89,7 +117,7 @@ const configTablas = {
   },
   responsables: {
     titulo: 'Responsables',
-    campos: 'id_responsable, dni_alumno, nombre, apellido, telefono, email, vinculo',
+    campos: 'id_responsable, dni_alumno, nombre, apellido, telefono, email, fecha_nacimiento, genero, nacionalidad, vinculo, id_domicilio',
     orden: { column: 'apellido', ascending: true },
     buscarEn: ['nombre', 'apellido', 'email', 'telefono'],
     filtros: [
@@ -103,7 +131,11 @@ const configTablas = {
       { key: 'apellido', label: 'Apellido', tipo: 'text', required: true },
       { key: 'telefono', label: 'Teléfono', tipo: 'text' },
       { key: 'email', label: 'Email', tipo: 'email' },
+      { key: 'fecha_nacimiento', label: 'Fecha de nacimiento', tipo: 'date' },
+      { key: 'genero', label: 'Género', tipo: 'select', opciones: ['masculino', 'femenino', 'no_binario', 'otro', 'prefiero_no_decirlo'] },
+      { key: 'nacionalidad', label: 'Nacionalidad', tipo: 'text' },
       { key: 'vinculo', label: 'Vínculo', tipo: 'select', opciones: ['padre', 'madre', 'tutor', 'otro'], required: true },
+      { key: 'id_domicilio', label: 'Domicilio', tipo: 'select', tabla: 'domicilios', labelField: 'calle,numero,localidad', valueField: 'id_domicilio' },
     ],
     render: (row) => ({
       avatar: `${row.nombre?.[0] || ''}${row.apellido?.[0] || ''}`,
@@ -114,12 +146,10 @@ const configTablas = {
   },
   personal: {
     titulo: 'Personal',
-    campos: 'dni, nombre, apellido, email, rol',
+    campos: 'dni, nombre, apellido, email, telefono, fecha_nacimiento, genero, nacionalidad, id_domicilio',
     orden: { column: 'apellido', ascending: true },
-    buscarEn: ['nombre', 'apellido', 'email', 'rol'],
-    filtros: [
-      { key: 'rol', label: 'Rol', tipo: 'select', opciones: ['rector', 'vicerector', 'docente', 'preceptor', 'administrativo', 'jefe_de_taller', 'cooperadora', 'otro'] },
-    ],
+    buscarEn: ['nombre', 'apellido', 'email'],
+    filtros: [],
     pk: 'dni',
     editable: true,
     camposFormulario: [
@@ -127,13 +157,17 @@ const configTablas = {
       { key: 'nombre', label: 'Nombre', tipo: 'text', required: true },
       { key: 'apellido', label: 'Apellido', tipo: 'text', required: true },
       { key: 'email', label: 'Email', tipo: 'email', required: true },
-      { key: 'rol', label: 'Rol', tipo: 'select', opciones: ['rector', 'vicerector', 'docente', 'preceptor', 'administrativo', 'jefe_de_taller', 'cooperadora', 'otro'], required: true },
+      { key: 'telefono', label: 'Teléfono', tipo: 'text' },
+      { key: 'fecha_nacimiento', label: 'Fecha de nacimiento', tipo: 'date' },
+      { key: 'genero', label: 'Género', tipo: 'select', opciones: ['masculino', 'femenino', 'no_binario', 'otro', 'prefiero_no_decirlo'] },
+      { key: 'nacionalidad', label: 'Nacionalidad', tipo: 'text' },
+      { key: 'id_domicilio', label: 'Domicilio', tipo: 'select', tabla: 'domicilios', labelField: 'calle,numero,localidad', valueField: 'id_domicilio' },
     ],
     render: (row) => ({
       avatar: `${row.nombre?.[0] || ''}${row.apellido?.[0] || ''}`,
       titulo: `${row.apellido}, ${row.nombre}`,
-      meta: [row.email, row.rol ? capitalizar(row.rol) : null].filter(Boolean),
-      tags: [row.rol ? { text: capitalizar(row.rol), style: 'default' } : null].filter(Boolean),
+      meta: [row.email].filter(Boolean),
+      tags: [],
     }),
   },
   cursos: {
@@ -180,42 +214,46 @@ const configTablas = {
       tags: [],
     }),
   },
-  informes: {
-    titulo: 'Informes',
-    campos: 'id_informe, dni_alumno, id_categoria, tipo_falta, titulo, instancia, resumen, descargo, estado, numero, fecha_creacion',
-    orden: { column: 'fecha_creacion', ascending: false },
-    buscarEn: ['titulo', 'resumen', 'tipo_falta'],
-    filtros: [
-      { key: 'instancia', label: 'Instancia', tipo: 'select', opciones: ['leve', 'grave', 'muy_grave', 'consejo_aula', 'consejo', 'otro'] },
-      { key: 'estado', label: 'Estado', tipo: 'select', opciones: ['pendiente', 'revisado', 'anulado', 'archivado', 'derivado'] },
-    ],
-    pk: 'id_informe',
+  roles: {
+    titulo: 'Roles',
+    campos: 'id_rol, nombre, descripcion',
+    orden: { column: 'nombre', ascending: true },
+    buscarEn: ['nombre', 'descripcion'],
+    filtros: [],
+    pk: 'id_rol',
     editable: true,
     camposFormulario: [
-      { key: 'dni_alumno', label: 'Alumno (DNI)', tipo: 'select', tabla: 'alumnos', labelField: 'apellido,nombre', valueField: 'dni', required: true },
-      { key: 'id_categoria', label: 'Categoría', tipo: 'select', tabla: 'categorias', labelField: 'nombre', valueField: 'id_categoria', required: true },
-      { key: 'tipo_falta', label: 'Tipo de falta', tipo: 'text', required: true },
-      { key: 'titulo', label: 'Título', tipo: 'text', required: true },
-      { key: 'instancia', label: 'Instancia', tipo: 'select', opciones: ['leve', 'grave', 'muy_grave', 'consejo_aula', 'consejo', 'otro'], required: true },
-      { key: 'resumen', label: 'Resumen', tipo: 'textarea', required: true },
-      { key: 'descargo', label: 'Descargo', tipo: 'textarea' },
-      { key: 'estado', label: 'Estado', tipo: 'select', opciones: ['pendiente', 'revisado', 'anulado', 'archivado', 'derivado'], required: true },
-      { key: 'numero', label: 'Número de informe', tipo: 'number' },
+      { key: 'nombre', label: 'Nombre', tipo: 'text', required: true },
+      { key: 'descripcion', label: 'Descripción', tipo: 'textarea' },
     ],
     render: (row) => ({
-      avatar: row.numero ? String(row.numero).slice(-3) : 'INF',
-      titulo: row.titulo || 'Sin título',
-      meta: [
-        row.instancia ? capitalizar(row.instancia) : null,
-        row.estado ? capitalizar(row.estado) : null,
-        row.fecha_creacion ? new Date(row.fecha_creacion).toLocaleDateString('es-AR') : null,
-      ].filter(Boolean),
-      tags: [
-        row.estado === 'pendiente' ? { text: 'Pendiente', style: 'amber' } : null,
-        row.estado === 'revisado' ? { text: 'Revisado', style: 'default' } : null,
-        row.estado === 'archivado' ? { text: 'Archivado', style: 'purple' } : null,
-        row.instancia === 'muy_grave' ? { text: 'Muy Grave', style: 'purple' } : null,
-      ].filter(Boolean),
+      avatar: row.nombre?.[0] || 'R',
+      titulo: row.nombre,
+      meta: [row.descripcion].filter(Boolean),
+      tags: [],
+    }),
+  },
+  domicilios: {
+    titulo: 'Domicilios',
+    campos: 'id_domicilio, calle, numero, departamento, localidad',
+    orden: { column: 'calle', ascending: true },
+    buscarEn: ['calle', 'localidad', 'departamento'],
+    filtros: [
+      { key: 'localidad', label: 'Localidad', tipo: 'select', opciones: [] },
+    ],
+    pk: 'id_domicilio',
+    editable: true,
+    camposFormulario: [
+      { key: 'calle', label: 'Calle', tipo: 'text', required: true },
+      { key: 'numero', label: 'Número', tipo: 'number', required: true },
+      { key: 'departamento', label: 'Departamento', tipo: 'text' },
+      { key: 'localidad', label: 'Localidad', tipo: 'text', required: true },
+    ],
+    render: (row) => ({
+      avatar: '📍',
+      titulo: `${row.calle} ${row.numero}${row.departamento ? ' Dpto. ' + row.departamento : ''}`,
+      meta: [row.localidad].filter(Boolean),
+      tags: [],
     }),
   },
 };
@@ -310,8 +348,53 @@ loginForm.addEventListener('submit', async (e) => {
   }
 });
 
-// Logout
-logoutBtn.addEventListener('click', async () => {
+// Logout con modal de confirmación
+let _logoutCountdownInterval = null;
+
+function mostrarModalLogout() {
+  if (!modalLogout) return;
+  modalLogout.classList.remove('hidden');
+  document.body.style.overflow = 'hidden';
+
+  // Resetear botón
+  btnConfirmarLogout.disabled = true;
+  btnConfirmarLogout.style.opacity = '0.5';
+  btnConfirmarLogout.style.cursor = 'not-allowed';
+  let segundos = 5;
+  logoutCountdown.textContent = segundos;
+
+  if (_logoutCountdownInterval) clearInterval(_logoutCountdownInterval);
+  _logoutCountdownInterval = setInterval(() => {
+    segundos--;
+    logoutCountdown.textContent = segundos;
+    if (segundos <= 0) {
+      clearInterval(_logoutCountdownInterval);
+      btnConfirmarLogout.disabled = false;
+      btnConfirmarLogout.style.opacity = '1';
+      btnConfirmarLogout.style.cursor = 'pointer';
+    }
+  }, 1000);
+}
+
+function cerrarModalLogout() {
+  if (!modalLogout) return;
+  modalLogout.classList.add('hidden');
+  document.body.style.overflow = '';
+  if (_logoutCountdownInterval) {
+    clearInterval(_logoutCountdownInterval);
+    _logoutCountdownInterval = null;
+  }
+}
+
+logoutBtn.addEventListener('click', () => {
+  mostrarModalLogout();
+});
+
+btnCancelarLogout?.addEventListener('click', cerrarModalLogout);
+modalLogoutBackdrop?.addEventListener('click', cerrarModalLogout);
+
+btnConfirmarLogout?.addEventListener('click', async () => {
+  cerrarModalLogout();
   await cerrarSesion();
 });
 
@@ -331,15 +414,33 @@ onAuthChange((estado, perfil) => {
 // ========== NAVIGACION SECCIONES ==========
 function mostrarSeccion(seccion) {
   seccionActual = seccion;
-  if (seccion === 'buscador') {
+  if (seccion === 'dashboard') {
+    sectionDashboard.classList.remove('hidden');
+    sectionBuscador.classList.add('hidden');
+    sectionUsuarios.classList.add('hidden');
+    sectionInfo.classList.add('hidden');
+    mainFilters.style.display = 'none';
+    cargarDashboard();
+  } else if (seccion === 'buscador') {
+    sectionDashboard.classList.add('hidden');
     sectionBuscador.classList.remove('hidden');
     sectionUsuarios.classList.add('hidden');
-    sidebarFilters.style.display = '';
+    sectionInfo.classList.add('hidden');
+    mainFilters.style.display = '';
   } else if (seccion === 'usuarios') {
+    sectionDashboard.classList.add('hidden');
     sectionBuscador.classList.add('hidden');
     sectionUsuarios.classList.remove('hidden');
-    sidebarFilters.style.display = 'none';
+    sectionInfo.classList.add('hidden');
+    mainFilters.style.display = 'none';
     cargarUsuarios();
+  } else if (seccion === 'info') {
+    sectionDashboard.classList.add('hidden');
+    sectionBuscador.classList.add('hidden');
+    sectionUsuarios.classList.add('hidden');
+    sectionInfo.classList.remove('hidden');
+    mainFilters.style.display = 'none';
+    renderizarInfoNexus();
   }
   sidebarLinks.forEach(link => {
     const esActivo = link.dataset.table === seccion || link.dataset.section === seccion;
@@ -363,29 +464,58 @@ openSidebarBtn?.addEventListener('click', openSidebar);
 closeSidebarBtn?.addEventListener('click', closeSidebar);
 sidebarOverlay?.addEventListener('click', closeSidebar);
 
-// ========== STATS ==========
-async function cargarStats() {
+// ========== DASHBOARD ==========
+async function cargarDashboard() {
   try {
-    const [alumnos, personal, cursos, materias] = await Promise.all([
+    const [
+      alumnos,
+      personal,
+      cursos,
+      materias,
+      responsables,
+    ] = await Promise.all([
       supabase.from('alumnos').select('dni', { count: 'exact', head: true }),
       supabase.from('personal').select('dni', { count: 'exact', head: true }),
       supabase.from('cursos').select('id_curso', { count: 'exact', head: true }),
       supabase.from('materias').select('id_materia', { count: 'exact', head: true }),
+      supabase.from('responsables').select('id_responsable', { count: 'exact', head: true }),
     ]);
 
-    statsGrid.innerHTML = [
-      { label: 'Alumnos', value: alumnos.count || 0 },
-      { label: 'Personal', value: personal.count || 0 },
-      { label: 'Cursos', value: cursos.count || 0 },
-      { label: 'Materias', value: materias.count || 0 },
-    ].map(s => `
+    const { data: ultimosAlumnos } = await supabase
+      .from('alumnos')
+      .select('dni, nombre, apellido, division, turno')
+      .order('created_at', { ascending: false })
+      .limit(5);
+
+    // Stats
+    const stats = [
+      { label: 'Alumnos', value: alumnos.count || 0, icon: '👨‍🎓' },
+      { label: 'Personal', value: personal.count || 0, icon: '👩‍🏫' },
+      { label: 'Cursos', value: cursos.count || 0, icon: '📚' },
+      { label: 'Materias', value: materias.count || 0, icon: '📖' },
+      { label: 'Responsables', value: responsables.count || 0, icon: '👨‍👩‍👧' },
+    ];
+
+    dashboardStatsGrid.innerHTML = stats.map(s => `
       <div class="nx-stat">
+        <div class="nx-stat-icon">${s.icon}</div>
         <div class="nx-stat-value">${s.value}</div>
         <div class="nx-stat-label">${s.label}</div>
       </div>
     `).join('');
+
+    // Últimos alumnos
+    const alumnosRows = (ultimosAlumnos || []).map(a => `
+      <div class="nx-dashboard-item">
+        <div class="nx-dashboard-item-main">
+          <span class="nx-dashboard-item-title">${escapeHtml(a.apellido)}, ${escapeHtml(a.nombre)}</span>
+          <span class="nx-dashboard-item-meta">DNI ${a.dni} · ${a.division || ''} · ${a.turno || ''}</span>
+        </div>
+      </div>
+    `).join('');
+    dashboardUltimosAlumnos.innerHTML = alumnosRows || '<div class="nx-dashboard-empty">No hay alumnos</div>';
   } catch (err) {
-    console.error('[Nexus] Error stats:', err);
+    console.error('[Nexus] Error dashboard:', err);
   }
 }
 
@@ -410,18 +540,14 @@ async function cargarOpcionesFiltros() {
 
 function renderizarFiltros() {
   const config = configTablas[tablaActual];
-  sidebarFilters.innerHTML = '';
+  mainFilters.innerHTML = '';
 
   if (!config.filtros || config.filtros.length === 0) {
-    sidebarFilters.innerHTML = `<div style="padding:20px;text-align:center;color:var(--nx-text-dim);font-size:13px;">No hay filtros disponibles.</div>`;
     return;
   }
 
-  const header = document.createElement('div');
-  header.className = 'nx-sidebar-label';
-  header.style.marginTop = '8px';
-  header.textContent = `Filtros · ${config.titulo}`;
-  sidebarFilters.appendChild(header);
+  const wrapper = document.createElement('div');
+  wrapper.className = 'nx-filters-row';
 
   config.filtros.forEach(filtro => {
     const group = document.createElement('div');
@@ -480,7 +606,7 @@ function renderizarFiltros() {
       group.appendChild(chipsContainer);
     }
 
-    sidebarFilters.appendChild(group);
+    wrapper.appendChild(group);
   });
 
   if (Object.keys(filtrosActuales).length > 0) {
@@ -493,26 +619,145 @@ function renderizarFiltros() {
       renderizarFiltros();
       buscar(searchInput.value);
     });
-    sidebarFilters.appendChild(resetBtn);
+    wrapper.appendChild(resetBtn);
+  }
+
+  mainFilters.appendChild(wrapper);
+}
+
+// ========== CACHE & HELPERS ==========
+function cacheKey(tabla, termino, filtros) {
+  return `${tabla}|${termino || ''}|${JSON.stringify(filtros || {})}`;
+}
+
+function getCache(tabla, termino, filtros) {
+  const key = cacheKey(tabla, termino, filtros);
+  const entry = cacheResultados.get(key);
+  if (!entry) return null;
+  if (Date.now() - entry.timestamp > CACHE_TTL_MS) {
+    cacheResultados.delete(key);
+    return null;
+  }
+  return entry.data;
+}
+
+function setCache(tabla, termino, filtros, data) {
+  const key = cacheKey(tabla, termino, filtros);
+  cacheResultados.set(key, { data, timestamp: Date.now() });
+}
+
+function limpiarCacheTabla(tabla) {
+  for (const key of cacheResultados.keys()) {
+    if (key.startsWith(`${tabla}|`)) cacheResultados.delete(key);
+  }
+}
+
+function renderizarGrid(data, config) {
+  resultsCount.textContent = `${data?.length || 0} resultado${data?.length !== 1 ? 's' : ''}`;
+
+  if (!data || data.length === 0) {
+    resultsGrid.innerHTML = `
+      <div class="nx-empty">
+        <div class="nx-empty-icon"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></div>
+        <p class="nx-empty-text">${searchInput.value ? `No se encontraron resultados para "${escapeHtml(searchInput.value)}"` : 'No hay registros para mostrar'}</p>
+      </div>`;
+    return;
+  }
+
+  const fragment = document.createDocumentFragment();
+
+  data.forEach(row => {
+    const rendered = config.render(row);
+    const meta = rendered.meta.map(m => `<span>${escapeHtml(m)}</span>`).join(' · ');
+    const tags = rendered.tags.map(t => {
+      const sc = t.style === 'purple' ? 'nx-card-tag-purple' : t.style === 'amber' ? 'nx-card-tag-amber' : '';
+      return `<span class="nx-card-tag ${sc}">${escapeHtml(t.text)}</span>`;
+    }).join('');
+    const pkValue = row[config.pk];
+    const acciones = config.editable ? `
+      <div class="nx-card-actions">
+        <button class="nx-card-action-btn nx-card-action-edit" title="Editar" data-pk="${escapeHtml(String(pkValue))}">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+        </button>
+        <button class="nx-card-action-btn nx-card-action-delete" title="Eliminar" data-pk="${escapeHtml(String(pkValue))}">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+        </button>
+      </div>` : '';
+
+    const div = document.createElement('div');
+    div.className = 'nx-card nx-card-crud nx-card-clickable';
+    div.dataset.pk = String(pkValue);
+    div.innerHTML = `
+      <div class="nx-card-avatar">${escapeHtml(rendered.avatar)}</div>
+      <div class="nx-card-body">
+        <div class="nx-card-title">${escapeHtml(rendered.titulo)}</div>
+        <div class="nx-card-meta">${meta}</div>
+        ${tags ? `<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;">${tags}</div>` : ''}
+      </div>
+      ${acciones}`;
+    fragment.appendChild(div);
+  });
+
+  resultsGrid.innerHTML = '';
+  resultsGrid.appendChild(fragment);
+
+  // Bind click en cards → detalle
+  resultsGrid.querySelectorAll('.nx-card-clickable').forEach(card => {
+    card.addEventListener('click', () => abrirDetalleRegistro(tablaActual, card.dataset.pk));
+  });
+
+  // Bind editar/eliminar (stopPropagation para no abrir detalle)
+  if (config.editable) {
+    resultsGrid.querySelectorAll('.nx-card-action-edit').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        abrirFormularioEditar(tablaActual, btn.dataset.pk);
+      });
+    });
+    resultsGrid.querySelectorAll('.nx-card-action-delete').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        abrirModalConfirmarEliminar(tablaActual, btn.dataset.pk);
+      });
+    });
   }
 }
 
 // ========== BUSQUEDA ==========
 async function buscar(query) {
+  busquedaId++;
+  const estaBusqueda = busquedaId;
   const config = configTablas[tablaActual];
   resultsTitle.textContent = config.titulo;
 
-  resultsGrid.innerHTML = `
-    <div class="nx-empty">
-      <div class="nx-empty-icon" style="animation: nx-pulse 1.5s infinite;">
-        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-      </div>
-      <p class="nx-empty-text">Cargando...</p>
-    </div>
-  `;
+  const termino = query?.trim();
+  const filtrosKey = { ...filtrosActuales };
+
+  // 1. Revisar cache
+  const cacheado = getCache(tablaActual, termino, filtrosKey);
+  if (cacheado) {
+    renderizarGrid(cacheado, config);
+    return;
+  }
+
+  // 2. Cancelar request anterior realmente (abort HTTP)
+  if (abortControllerBusqueda) {
+    abortControllerBusqueda.abort();
+  }
+  abortControllerBusqueda = new AbortController();
+
+  // 3. Mostrar skeleton solo si no hay datos visibles
+  if (!resultsGrid.querySelector('.nx-card')) {
+    resultsGrid.innerHTML = `
+      <div class="nx-empty">
+        <div class="nx-empty-icon" style="animation: nx-pulse 1.5s infinite;">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        </div>
+        <p class="nx-empty-text">Cargando...</p>
+      </div>`;
+  }
 
   try {
-    const termino = query?.trim();
     let supaQuery = supabase
       .from(tablaActual)
       .select(config.campos)
@@ -527,6 +772,8 @@ async function buscar(query) {
           supaQuery = supaQuery.or(`dni.eq.${num}`);
         } else if (tablaActual === 'cursos') {
           supaQuery = supaQuery.or(`anio.eq.${num}`);
+        } else if (tablaActual === 'domicilios') {
+          supaQuery = supaQuery.or(`numero.eq.${num}`);
         }
       }
       if (config.buscarEn.length > 0) {
@@ -541,60 +788,18 @@ async function buscar(query) {
       supaQuery = supaQuery.eq(key, value);
     });
 
+    const { data, error } = await supaQuery.abortSignal(abortControllerBusqueda.signal);
 
-    const { data, error } = await supaQuery;
+    // Ignorar resultados de queries viejas o canceladas
+    if (estaBusqueda !== busquedaId) return;
     if (error) throw error;
 
-    resultsCount.textContent = `${data?.length || 0} resultado${data?.length !== 1 ? 's' : ''}`;
+    // Guardar en cache
+    setCache(tablaActual, termino, filtrosKey, data);
 
-    if (!data || data.length === 0) {
-      resultsGrid.innerHTML = `
-        <div class="nx-empty">
-          <div class="nx-empty-icon"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></div>
-          <p class="nx-empty-text">${termino ? `No se encontraron resultados para "${escapeHtml(termino)}"` : 'No hay registros para mostrar'}</p>
-        </div>`;
-      return;
-    }
-
-    resultsGrid.innerHTML = data.map(row => {
-      const rendered = config.render(row);
-      const meta = rendered.meta.map(m => `<span>${escapeHtml(m)}</span>`).join(' · ');
-      const tags = rendered.tags.map(t => {
-        const sc = t.style === 'purple' ? 'nx-card-tag-purple' : t.style === 'amber' ? 'nx-card-tag-amber' : '';
-        return `<span class="nx-card-tag ${sc}">${escapeHtml(t.text)}</span>`;
-      }).join('');
-      const pkValue = row[config.pk];
-      const acciones = config.editable ? `
-        <div class="nx-card-actions">
-          <button class="nx-card-action-btn nx-card-action-edit" title="Editar" data-pk="${escapeHtml(String(pkValue))}">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-          </button>
-          <button class="nx-card-action-btn nx-card-action-delete" title="Eliminar" data-pk="${escapeHtml(String(pkValue))}">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-          </button>
-        </div>` : '';
-      return `
-        <div class="nx-card nx-card-crud">
-          <div class="nx-card-avatar">${escapeHtml(rendered.avatar)}</div>
-          <div class="nx-card-body">
-            <div class="nx-card-title">${escapeHtml(rendered.titulo)}</div>
-            <div class="nx-card-meta">${meta}</div>
-            ${tags ? `<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;">${tags}</div>` : ''}
-          </div>
-          ${acciones}
-        </div>`;
-    }).join('');
-
-    // Bind editar/eliminar
-    if (config.editable) {
-      resultsGrid.querySelectorAll('.nx-card-action-edit').forEach(btn => {
-        btn.addEventListener('click', () => abrirFormularioEditar(tablaActual, btn.dataset.pk));
-      });
-      resultsGrid.querySelectorAll('.nx-card-action-delete').forEach(btn => {
-        btn.addEventListener('click', () => eliminarRegistro(tablaActual, btn.dataset.pk));
-      });
-    }
+    renderizarGrid(data, config);
   } catch (err) {
+    if (err.name === 'AbortError') return; // Query cancelada intencionalmente
     console.error('[Nexus] Error:', err);
     mostrarToast('Error al cargar datos.', 'error');
     resultsGrid.innerHTML = `
@@ -602,67 +807,6 @@ async function buscar(query) {
         <div class="nx-empty-icon" style="color:#ef4444"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg></div>
         <p class="nx-empty-text">Error de conexión</p>
       </div>`;
-  }
-}
-
-// Crear informe de prueba y sincronizar con GIE
-async function crearInformePrueba() {
-  const btn = resultsActions.querySelector('button');
-  if (btn) btn.textContent = 'Creando...';
-
-  try {
-    // 1. Insertar en Nexus
-    const informe = {
-      dni_alumno: 40000014, // Bruno Ortiz
-      id_categoria: 1, // Conducta
-      tipo_falta: 'Conducta',
-      titulo: 'Test sincronización Nexus → GIE',
-      instancia: 'leve',
-      resumen: 'Informe de prueba creado desde Nexus para verificar que aparece en GIE.',
-      estado: 'pendiente',
-      dni_creador: 20111001,
-      numero: 202600999,
-      observaciones: 'Creado automáticamente desde Nexus.',
-    };
-
-    const { data: nuevoInforme, error: errNexus } = await supabase
-      .from('informes')
-      .insert(informe)
-      .select()
-      .single();
-
-    if (errNexus) throw errNexus;
-
-    console.log('[Nexus] Informe creado:', nuevoInforme);
-    mostrarToast('Informe creado en Nexus', 'success');
-
-    // 2. Enviar a GIE
-    if (GIE_ENABLED) {
-      const gieResult = await enviarInformeAGIE(
-        informe.dni_alumno,
-        'Conducta',
-        informe.tipo_falta,
-        informe.titulo,
-        informe.instancia,
-        informe.resumen,
-        informe.estado
-      );
-
-      if (gieResult.ok) {
-        mostrarToast('Informe sincronizado con GIE ✅', 'success');
-      } else {
-        mostrarToast('GIE: ' + gieResult.error, 'error');
-      }
-    } else {
-      mostrarToast('GIE no configurado (faltan VITE_GIE_URL y VITE_GIE_ANON_KEY)', 'error');
-    }
-
-    buscar('');
-  } catch (err) {
-    console.error('[Nexus] Error creando informe:', err);
-    mostrarToast(err.message || 'Error al crear informe', 'error');
-  } finally {
-    if (btn) btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:middle;margin-right:4px;"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Nuevo informe de prueba';
   }
 }
 
@@ -674,10 +818,12 @@ function cambiarTabla(nuevaTabla) {
   const placeholders = {
     alumnos: 'Buscar por nombre, apellido, DNI, email...',
     responsables: 'Buscar por nombre, apellido, teléfono...',
-    personal: 'Buscar por nombre, apellido, rol, email...',
+    personal: 'Buscar por nombre, apellido, email...',
     cursos: 'Buscar por año, división, turno, especialidad...',
     materias: 'Buscar por nombre o descripción...',
-    informes: 'Buscar por título, resumen, tipo de falta...',
+    roles: 'Buscar por nombre o descripción...',
+    domicilios: 'Buscar por calle, localidad, departamento...',
+
   };
   searchInput.placeholder = placeholders[tablaActual] || 'Buscar...';
 
@@ -690,16 +836,6 @@ function cambiarTabla(nuevaTabla) {
     btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:middle;margin-right:4px;"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Nuevo ${config.titulo.toLowerCase().slice(0, -1)}`;
     btn.addEventListener('click', () => abrirFormularioCrear(tablaActual));
     resultsActions.appendChild(btn);
-  }
-
-  // Botón "Sync con GIE" solo para informes
-  if (tablaActual === 'informes' && GIE_ENABLED) {
-    const btnSync = document.createElement('button');
-    btnSync.className = 'nx-login-btn';
-    btnSync.style.cssText = 'padding: 8px 16px; font-size: 13px; margin-left: 8px; background: var(--nx-bg-card); color: var(--nx-text); border: 1px solid var(--nx-border);';
-    btnSync.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:middle;margin-right:4px;"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/></svg> Sincronizar con GIE`;
-    btnSync.addEventListener('click', sincronizarInformesDesdeGIE);
-    resultsActions.appendChild(btnSync);
   }
 
   renderizarFiltros();
@@ -865,6 +1001,14 @@ function cerrarModal() {
   modalCRUD.classList.add('hidden');
   document.body.style.overflow = '';
   modalOnGuardar = null;
+
+  // Restaurar botón Guardar
+  modalGuardar.classList.remove('hidden');
+
+  // Limpiar botones dinámicos de detalle
+  const footer = modalGuardar.parentElement;
+  footer.querySelector('.nx-modal-btn-editar')?.remove();
+  footer.querySelector('.nx-modal-btn-eliminar')?.remove();
 }
 
 modalCerrar.addEventListener('click', cerrarModal);
@@ -998,9 +1142,11 @@ async function guardarRegistro(entidad, esNuevo, pkValue = null) {
 
   modalGuardar.textContent = 'Guardando...';
   try {
+    let idLocal = pkValue;
     if (esNuevo) {
-      const { error } = await supabase.from(entidad).insert(datos);
+      const { data: nuevo, error } = await supabase.from(entidad).insert(datos).select(config.pk).single();
       if (error) throw error;
+      idLocal = nuevo[config.pk];
       mostrarToast(`${config.titulo} creado correctamente`);
     } else {
       const { error } = await supabase.from(entidad).update(datos).eq(config.pk, pkValue);
@@ -1008,24 +1154,7 @@ async function guardarRegistro(entidad, esNuevo, pkValue = null) {
       mostrarToast(`${config.titulo} actualizado correctamente`);
     }
 
-    // Sync con GIE para informes
-    if (entidad === 'informes') {
-      let categoriaNombre = 'Otros';
-      if (datos.id_categoria) {
-        try {
-          const { data: cat } = await supabase.from('categorias').select('nombre').eq('id_categoria', datos.id_categoria).single();
-          if (cat?.nombre) categoriaNombre = cat.nombre;
-        } catch (e) { /* noop */ }
-      }
-      const syncResult = await enviarInformeAGIE({ ...datos, categoria_nombre: categoriaNombre });
-      if (syncResult.ok) {
-        mostrarToast('Informe sincronizado con GIE');
-      } else {
-        console.warn('[Nexus] Sync GIE falló:', syncResult.error);
-        mostrarToast('Guardado localmente, pero falló sync con GIE', 'error');
-      }
-    }
-
+    limpiarCacheTabla(entidad);
     cerrarModal();
     buscar(searchInput.value);
   } catch (err) {
@@ -1043,6 +1172,7 @@ async function eliminarRegistro(entidad, pkValue) {
     const { error } = await supabase.from(entidad).delete().eq(config.pk, pkValue);
     if (error) throw error;
     mostrarToast(`${config.titulo} eliminado`);
+    limpiarCacheTabla(entidad);
     buscar(searchInput.value);
   } catch (err) {
     console.error('[Nexus] Error eliminando:', err);
@@ -1050,85 +1180,184 @@ async function eliminarRegistro(entidad, pkValue) {
   }
 }
 
-async function sincronizarInformesDesdeGIE() {
-  if (!GIE_ENABLED) {
-    mostrarToast('GIE no está configurado', 'error');
-    return;
-  }
-
-  const btn = resultsActions.querySelector('button:last-child');
-  const originalText = btn?.innerHTML;
-  if (btn) btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:middle;margin-right:4px;animation:spin 1s linear infinite;"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/></svg> Sincronizando...`;
-
+async function abrirDetalleRegistro(entidad, pkValue) {
+  const config = configTablas[entidad];
   try {
-    const { data: gieInformes, error } = await obtenerInformesDesdeGIE(100);
-    if (error) throw new Error(error);
-    if (!gieInformes || gieInformes.length === 0) {
-      mostrarToast('No hay informes nuevos en GIE');
-      if (btn && originalText) btn.innerHTML = originalText;
-      return;
+    const { data, error } = await supabase.from(entidad).select('*').eq(config.pk, pkValue).single();
+    if (error) throw error;
+
+    // Mapeo de campos a etiquetas legibles
+    const labels = {};
+    if (config.camposFormulario) {
+      config.camposFormulario.forEach(c => labels[c.key] = c.label);
     }
 
-    // Cargar categorías de Nexus para mapeo
-    const { data: nexusCats } = await supabase.from('categorias').select('id_categoria, nombre');
-    const catPorNombre = new Map((nexusCats || []).map(c => [c.nombre, c.id_categoria]));
+    // Renderizar cada campo
+    const camposHTML = Object.entries(data)
+      .filter(([key]) => !['created_at'].includes(key))
+      .map(([key, valor]) => {
+        const label = labels[key] || capitalizar(key.replace(/_/g, ' '));
+        let display = valor;
+        if (valor === null || valor === undefined || valor === '') display = '<span style="color:var(--nx-text-dim);font-style:italic;">—</span>';
+        else if (key.includes('fecha') || key.includes('date')) {
+          try { display = new Date(valor).toLocaleString('es-AR'); } catch (e) { display = valor; }
+        }
+        else display = escapeHtml(String(valor));
+        return `
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:8px 0;border-bottom:1px solid var(--nx-border);">
+            <span style="color:var(--nx-text-dim);font-size:13px;flex-shrink:0;">${escapeHtml(label)}</span>
+            <span style="color:var(--nx-text);font-size:13px;font-weight:500;text-align:right;word-break:break-word;">${display}</span>
+          </div>`;
+      }).join('');
 
-    let insertados = 0;
-    let actualizados = 0;
+    const html = `
+      <div style="display:flex;flex-direction:column;gap:4px;">
+        ${camposHTML}
+      </div>
+    `;
 
-    for (const gi of gieInformes) {
-      if (!gi.alumnos?.dni) continue;
+    abrirModal(config.titulo, html, null);
 
-      const catNombre = gi.categorias?.nombre || 'Otros';
-      const catId = catPorNombre.get(catNombre) || null;
+    // Ocultar botón Guardar del modal de detalle
+    modalGuardar.classList.add('hidden');
 
-      const datos = {
-        dni_alumno: gi.alumnos.dni,
-        id_categoria: catId,
-        tipo_falta: gi.tipo_falta || 'Otra',
-        titulo: gi.titulo,
-        instancia: gi.instancia,
-        resumen: gi.resumen,
-        descargo: gi.descargo || null,
-        estado: gi.estado || 'pendiente',
-        fecha_creacion: gi.fecha_creacion,
-        fecha_revision: gi.fecha_revision || null,
-        motivo_rechazo: gi.motivo_rechazo || null,
-        fecha_reunion: gi.fecha_reunion || null,
-        observaciones: gi.observaciones || null,
-        numero: gi.numero || null,
-        gie_id: gi.id || null,
-        gie_synced_at: new Date().toISOString()
-      };
+    // Agregar botones de acción en el footer
+    const footer = modalGuardar.parentElement;
+    let btnEditar = footer.querySelector('.nx-modal-btn-editar');
+    let btnEliminar = footer.querySelector('.nx-modal-btn-eliminar');
 
-      const { error: upsertError } = await supabase
-        .from('informes')
-        .upsert(datos, { onConflict: 'numero' });
-
-      if (upsertError) {
-        console.warn('[Nexus] Error upsertando informe', gi.numero, upsertError);
-      } else {
-        if (gi.nexus_synced_at) actualizados++;
-        else insertados++;
-      }
+    if (!btnEditar && config.editable) {
+      btnEditar = document.createElement('button');
+      btnEditar.className = 'nx-login-btn nx-modal-btn-editar';
+      btnEditar.style.cssText = 'padding:8px 16px;font-size:13px;margin-right:auto;';
+      btnEditar.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:middle;margin-right:4px;"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Editar`;
+      btnEditar.addEventListener('click', () => {
+        cerrarModal();
+        setTimeout(() => abrirFormularioEditar(entidad, pkValue), 150);
+      });
+      footer.insertBefore(btnEditar, modalCancelar);
     }
 
-    mostrarToast(`${insertados} informes nuevos, ${actualizados} actualizados desde GIE`);
-    buscar(searchInput.value);
+    if (!btnEliminar && config.editable) {
+      btnEliminar = document.createElement('button');
+      btnEliminar.className = 'nx-login-btn nx-modal-btn-eliminar';
+      btnEliminar.style.cssText = 'padding:8px 16px;font-size:13px;background:transparent;color:#ef4444;border:1px solid rgba(239,68,68,0.3);';
+      btnEliminar.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:middle;margin-right:4px;"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg> Eliminar`;
+      btnEliminar.addEventListener('click', () => {
+        cerrarModal();
+        setTimeout(() => abrirModalConfirmarEliminar(entidad, pkValue), 150);
+      });
+      footer.insertBefore(btnEliminar, modalGuardar);
+    }
   } catch (err) {
-    console.error('[Nexus] Error sincronizando desde GIE:', err);
-    mostrarToast(err.message || 'Error al sincronizar con GIE', 'error');
-  } finally {
-    if (btn && originalText) btn.innerHTML = originalText;
+    mostrarToast('Error al cargar detalle', 'error');
+    console.error(err);
   }
 }
+
+function abrirModalConfirmarEliminar(entidad, pkValue) {
+  const config = configTablas[entidad];
+  abrirModal('Confirmar eliminación', `
+    <div style="text-align:center;padding:16px 0;">
+      <div style="width:56px;height:56px;border-radius:50%;background:rgba(239,68,68,0.1);color:#ef4444;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+      </div>
+      <p style="color:var(--nx-text);font-size:16px;font-weight:600;margin-bottom:4px;">¿Eliminar ${config.titulo.toLowerCase().slice(0, -1)}?</p>
+      <p style="color:var(--nx-text-dim);font-size:13px;">Esta acción no se puede deshacer.</p>
+    </div>
+  `, () => {
+    eliminarRegistro(entidad, pkValue);
+    cerrarModal();
+  });
+}
+
+// ========== INFO NEXUS ==========
+function htmlNovedades() {
+  if (!NEXUS_INFO.novedades?.length) {
+    return '<p class="nx-info-empty">No hay novedades registradas.</p>';
+  }
+
+  const ultima = NEXUS_INFO.novedades[0];
+  const items = ultima.items.map(item => `
+    <li class="nx-info-list-item">
+      <svg class="nx-info-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+      <span>${escapeHtml(item)}</span>
+    </li>
+  `).join('');
+
+  return `
+    <ul class="nx-info-list">
+      ${items}
+    </ul>
+  `;
+}
+
+function htmlAcercaDe() {
+  const integrantes = NEXUS_INFO.integrantes.map(i => `
+    <li>${escapeHtml(i.nombre)}</li>
+  `).join('');
+
+  return `
+    <div class="nx-info-about-block">
+      <p class="nx-info-project-name"><strong>Nexus — Base de Datos Escolar Maestra</strong></p>
+      <p class="nx-info-label">Creada por:</p>
+      <ul class="nx-info-names-list">
+        ${integrantes || '<li class="nx-info-empty">Sin integrantes registrados.</li>'}
+      </ul>
+      <p class="nx-info-version-line">Versión <span class="nx-info-version-code">${escapeHtml(NEXUS_INFO.version)}</span></p>
+      <div class="nx-info-contact-box">
+        <p class="nx-info-contact-title">¿Encontraste un error?</p>
+        <p class="nx-info-contact-text">En caso de errores o fallas, notificar a <a href="mailto:${escapeHtml(NEXUS_INFO.contacto)}" class="nx-info-contact-link">${escapeHtml(NEXUS_INFO.contacto)}</a></p>
+      </div>
+    </div>
+  `;
+}
+
+function renderizarInfoNexus() {
+  if (!infoNovedades || !infoAcerca || !infoSubtitle) return;
+
+  infoSubtitle.textContent = `Versión ${NEXUS_INFO.version} · ${NEXUS_INFO.fecha_release}`;
+  if (infoVersionNovedades) infoVersionNovedades.textContent = NEXUS_INFO.novedades?.[0]?.version || NEXUS_INFO.version;
+
+  infoNovedades.innerHTML = htmlNovedades();
+  infoAcerca.innerHTML = htmlAcercaDe();
+}
+
+function renderizarLoginInfo() {
+  if (!loginInfoNovedades || !loginInfoAcerca) return;
+
+  if (loginInfoVersionNovedades) loginInfoVersionNovedades.textContent = NEXUS_INFO.novedades?.[0]?.version || NEXUS_INFO.version;
+
+  loginInfoNovedades.innerHTML = htmlNovedades();
+  loginInfoAcerca.innerHTML = htmlAcercaDe();
+}
+
+btnLoginInfo?.addEventListener('click', () => {
+  const visible = !loginInfoPanel.classList.contains('hidden');
+  if (visible) {
+    loginInfoPanel.classList.add('hidden');
+    btnLoginInfo.classList.remove('active');
+    btnLoginInfo.innerHTML = `
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+      Acerca de Nexus
+    `;
+  } else {
+    renderizarLoginInfo();
+    loginInfoPanel.classList.remove('hidden');
+    btnLoginInfo.classList.add('active');
+    btnLoginInfo.innerHTML = `
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 15l-6-6-6 6"/></svg>
+      Ocultar información
+    `;
+    loginInfoPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+});
 
 // ========== INICIALIZAR ==========
 async function iniciarApp() {
   await cargarOpcionesFiltros();
+  mostrarSeccion('dashboard');
   renderizarFiltros();
-  cargarStats();
-  buscar('');
 }
 
 (async () => {
