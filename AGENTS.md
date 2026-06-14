@@ -6,7 +6,7 @@
 
 ## Resumen del proyecto
 
-**Nexus** es una *Base de Datos Escolar Maestra*: un backend centralizado en Supabase (PostgreSQL) con un frontend web de búsqueda integrado. Expone datos maestros de alumnos, personal, cursos, materias, evaluaciones y asistencias. Otros proyectos del ecosistema (como GIE — Gestor de Informes Escolares) se conectan a través del **API Gateway** (`api-nexus`, una Edge Function de Supabase) que expone datos de forma controlada mediante API keys independientes. Cada proyecto externo tiene sus propios permisos granulares por tabla y operación.
+**Nexus** es una *Base de Datos Escolar Maestra*: un backend centralizado en Supabase (PostgreSQL) con un frontend web de búsqueda integrado. Expone datos maestros de alumnos, responsables, personal, cursos y materias. Tanto el frontend de Nexus como los proyectos externos acceden en **solo lectura**; no hay operaciones de escritura desde la interfaz web. Otros proyectos del ecosistema (como GIE — Gestor de Informes Escolares) se conectan a través del **API Gateway** (`api-nexus`, una Edge Function de Supabase) que expone datos de forma controlada mediante API keys independientes. Cada proyecto externo tiene sus propios permisos por tabla (solo lectura).
 
 El sistema es **cerrado**: solo accede personal autorizado con rol `regente`. No hay registros públicos.
 
@@ -38,7 +38,7 @@ El sistema es **cerrado**: solo accede personal autorizado con rol `regente`. No
 ├── README.md               # Documentación para humanos
 ├── src/
 │   ├── app.js              # Lógica principal: UI, búsqueda, filtros, stats, navegación
-│   ├── auth.js             # Autenticación y gestión de usuarios
+│   ├── auth.js             # Autenticación (login/logout y carga de perfil)
 │   ├── styles.css          # Design system completo (dark mode, paleta Nexus)
 │   ├── lib/
 │   │   ├── supabase.js     # Cliente Supabase (lee VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY)
@@ -49,7 +49,7 @@ El sistema es **cerrado**: solo accede personal autorizado con rol `regente`. No
 ├── supabase/
 │   ├── schema.sql                 # Tablas, índices y políticas RLS del schema escolar
 │   ├── migracion_auth.sql         # Tabla perfiles, triggers y funciones RPC para auth
-│   ├── migracion_proyectos_api.sql # Tabla proyectos, api_logs y gateway API
+│   ├── migracion_proyectos_api.sql # Tabla proyectos, api_logs y gateway API (solo lectura)
 │   ├── functions/
 │   │   └── api-nexus/
 │   │       └── index.ts          # Edge Function: gateway único para proyectos externos
@@ -106,18 +106,18 @@ npm install
 
 - Usa **Supabase Auth** (`signInWithPassword`, `signOut`, `signUp`).
 - Al loguearse, carga el perfil desde la tabla `public.perfiles` (vinculada 1:1 con `auth.users`).
-- Si el perfil no existe, genera un *fallback* con datos del `user_metadata`.
+- Si el perfil no existe o no se puede cargar, no se asume ningún rol y se fuerza el cierre de sesión.
 - El único rol existente es `regente`.
 - Expone callbacks `onAuthChange` para que `app.js` reaccione a cambios de sesión.
-- Gestión de usuarios (solo para regentes): `listarUsuarios`, `crearUsuario`, `eliminarUsuario`, `cambiarPasswordUsuario`.
+- Login/logout y carga del perfil del usuario.
 
 ### Backend (Supabase)
 
 - **Schema escolar** (`supabase/schema.sql`): tablas principales con claves foráneas, índices y RLS.
-- **Auth** (`supabase/migracion_auth.sql`): tabla `perfiles`, trigger `on_auth_user_created_nexus` y funciones RPC de gestión de usuarios.
-- **API Gateway** (`supabase/migracion_proyectos_api.sql` + Edge Function `api-nexus`): registro de proyectos externos, API keys, permisos granulares y auditoría.
+- **Auth** (`supabase/migracion_auth.sql`): tabla `perfiles`, trigger `on_auth_user_created_nexus` y funciones auxiliares de gestión de usuarios (uso desde Supabase Dashboard, no desde el frontend).
+- **API Gateway** (`supabase/migracion_proyectos_api.sql` + Edge Function `api-nexus`): registro de proyectos externos, API keys, permisos de solo lectura por tabla y auditoría.
 - **RLS**: todas las tablas tienen Row Level Security habilitado.
-  - `SELECT`: solo `authenticated` (el frontend de Nexus). `anon` fue removido.
+  - `SELECT`: solo `authenticated` (el frontend de Nexus). `anon` no tiene acceso.
   - `INSERT/UPDATE/DELETE`: requiere `authenticated`.
   - `proyectos` y `api_logs`: solo regentes (`rol = 'regente'`).
 
@@ -145,11 +145,11 @@ npm install
 | `personal` | Docentes, preceptores, directivos, administrativos |
 | `materias` | Asignaturas del plan de estudios |
 | `personal_materia` | Relación N:M entre personal y materias |
-| `evaluaciones` | Notas por alumno y materia |
-| `asistencias` | Registro diario (presente, ausente, tarde, justificado) |
 | `perfiles` | Perfiles de usuario (vinculados a `auth.users`) |
 | `proyectos` | Sistemas externos autorizados con API key y permisos JSONB |
 | `api_logs` | Auditoría de requests al gateway (`api-nexus`) |
+
+> **Nota sobre claves primarias:** las entidades principales (`alumnos`, `personal`, `responsables`) usan UUIDs (`id`) como PK. Los campos `dni` siguen siendo obligatorios y únicos, pero ya no son la clave primaria. Las tablas catálogo (`cursos`, `materias`, `roles`, `domicilios`) mantienen PKs seriales.
 
 ---
 
@@ -175,6 +175,8 @@ El proyecto **no tiene tests automáticos** configurados. No hay Jest, Vitest, P
    - Primero `supabase/schema.sql`
    - Luego `supabase/migracion_auth.sql`
    - Luego `supabase/migracion_proyectos_api.sql`
+   - Luego `supabase/migracion_permisos_rls.sql`
+   - Opcionalmente `supabase/migracion_gateway_solo_lectura.sql` si existían proyectos con permisos en formato antiguo
    - Opcionalmente `supabase/seed.sql` para datos de prueba.
 
 ---
@@ -183,10 +185,10 @@ El proyecto **no tiene tests automáticos** configurados. No hay Jest, Vitest, P
 
 - **Nunca commitear** `.env` ni `dist/` (ya están en `.gitignore`).
 - El `anon key` de Supabase **solo viaja al cliente del frontend de Nexus**. Los proyectos externos NO reciben la `anon key`; acceden únicamente vía la Edge Function `api-nexus` con API keys propias.
-- Cada proyecto externo tiene una API key independiente (`nx_...`) almacenada en `proyectos`, con permisos granulares por tabla y operación. Las keys son revocables y rotables vía `rotar_api_key()`.
+- Cada proyecto externo tiene una API key independiente (`nx_...`) almacenada en `proyectos`, con permisos de solo lectura por tabla (array JSONB). Las keys son revocables y rotables vía `rotar_api_key()`.
 - Las funciones RPC usan `SECURITY DEFINER` para poder operar sobre `auth.users`.
-- `eliminar_usuario_completo` y `actualizar_password_usuario` bloquean la auto-eliminación y auto-cambio de contraseña.
 - En Supabase Dashboard se recomienda desactivar *"Confirm email"* en Authentication → Providers → Email, para que los regentes creen usuarios sin verificación.
+- El frontend de Nexus es de **solo lectura**: no expone formularios de alta, edición ni eliminación de registros ni usuarios.
 
 ---
 

@@ -1,0 +1,11 @@
+# Supabase CLI configuration for Nexus
+# https://supabase.com/docs/guides/local-development/cli/config
+
+project_id = "peeslwpcclhvvmneyefl"
+
+[functions.api-nexus]
+enabled = true
+# The gateway uses its own API key (x-api-key) for authentication.
+# Disable Supabase JWT verification so external projects can call it
+# without presenting a Supabase Auth token.
+verify_jwt = false

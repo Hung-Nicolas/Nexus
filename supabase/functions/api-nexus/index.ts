@@ -1,16 +1,19 @@
 // ============================================================
-// NEXUS API Gateway — Edge Function
-// 
+// NEXUS API Gateway — Edge Function (solo lectura)
+//
 // Único punto de entrada para proyectos externos.
-// Valida API key, chequea permisos, ejecuta queries y audita.
-// 
+// Valida API key, chequea permisos de lectura, ejecuta SELECT y audita.
+//
 // Deploy:
 //   supabase functions deploy api-nexus
-// 
+//
 // Uso:
 //   POST https://<project>.supabase.co/functions/v1/api-nexus
 //   Headers: { "x-api-key": "nx_...", "Content-Type": "application/json" }
-//   Body:    { "tabla": "alumnos", "operacion": "select", "datos": { ... } }
+//   Body:    { "tabla": "alumnos", "datos": { ... } }
+//
+// La BD de Nexus es de solo lectura para proyectos externos.
+// No se exponen operaciones de escritura.
 // ============================================================
 
 import { createClient, SupabaseClient } from 'npm:@supabase/supabase-js@2'
@@ -19,14 +22,12 @@ import { createClient, SupabaseClient } from 'npm:@supabase/supabase-js@2'
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 
-// Tablas permitidas (whitelist para evitar acceso a tablas del sistema)
+// Tablas permitidas (whitelist para evitar acceso a tablas del sistema).
+// Solo tablas reales del modelo escolar actual.
 const TABLAS_PERMITIDAS = new Set([
   'alumnos', 'responsables', 'personal', 'cursos', 'materias',
-  'personal_materia', 'evaluaciones', 'asistencias',
-  'categorias', 'sincronizaciones'
+  'personal_materia'
 ])
-
-const OPERACIONES_PERMITIDAS = new Set(['select', 'insert', 'update', 'delete', 'rpc'])
 
 // Rate limit simple en memoria (por instancia de Edge Function)
 // Nota: las instancias son efímeras, esto no es perfecto pero frena abuso básico.
@@ -106,7 +107,7 @@ Deno.serve(async (req: Request) => {
   }
 
   // 4. Parsear body
-  let body: { tabla?: string; operacion?: string; datos?: Record<string, unknown> }
+  let body: { tabla?: string; datos?: Record<string, unknown> }
   try {
     body = await req.json()
   } catch {
@@ -116,16 +117,9 @@ Deno.serve(async (req: Request) => {
     })
   }
 
-  const { tabla, operacion, datos = {} } = body
+  const { tabla, datos = {} } = body
 
-  if (!operacion || !OPERACIONES_PERMITIDAS.has(operacion)) {
-    return new Response(JSON.stringify({ error: 'Operación no permitida' }), {
-      status: 400,
-      headers: { 'Content-Type': 'application/json' }
-    })
-  }
-
-  if (operacion !== 'rpc' && (!tabla || !TABLAS_PERMITIDAS.has(tabla))) {
+  if (!tabla || !TABLAS_PERMITIDAS.has(tabla)) {
     return new Response(JSON.stringify({ error: 'Tabla no permitida' }), {
       status: 400,
       headers: { 'Content-Type': 'application/json' }
@@ -146,7 +140,7 @@ Deno.serve(async (req: Request) => {
     .single()
 
   if (errProyecto || !proyecto) {
-    await logRequest(supabase, { ip, proyectoSlug: null, operacion, tabla: tabla || null, exito: false, error: 'API key inválida o inactiva', duracionMs: Date.now() - startedAt, responseStatus: 401 })
+    await logRequest(supabase, { ip, proyectoSlug: null, tabla: tabla || null, exito: false, error: 'API key inválida o inactiva', duracionMs: Date.now() - startedAt, responseStatus: 401 })
     return new Response(JSON.stringify({ error: 'API key inválida o inactiva' }), {
       status: 401,
       headers: { 'Content-Type': 'application/json' }
@@ -155,51 +149,29 @@ Deno.serve(async (req: Request) => {
 
   // 7. Validar IP si está restringida
   if (proyecto.ip_permitida && proyecto.ip_permitida !== ip) {
-    await logRequest(supabase, { ip, proyectoSlug: proyecto.slug, operacion, tabla: tabla || null, exito: false, error: 'IP no permitida', duracionMs: Date.now() - startedAt, responseStatus: 403 })
+    await logRequest(supabase, { ip, proyectoSlug: proyecto.slug, tabla: tabla || null, exito: false, error: 'IP no permitida', duracionMs: Date.now() - startedAt, responseStatus: 403 })
     return new Response(JSON.stringify({ error: 'IP no permitida' }), {
       status: 403,
       headers: { 'Content-Type': 'application/json' }
     })
   }
 
-  // 8. Validar permisos
-  const permisosTabla = proyecto.permisos?.[tabla || ''] as string[] | undefined
-  if (operacion !== 'rpc' && (!Array.isArray(permisosTabla) || !permisosTabla.includes(operacion))) {
-    await logRequest(supabase, { ip, proyectoSlug: proyecto.slug, operacion, tabla: tabla || null, exito: false, error: 'Sin permiso para esta operación', duracionMs: Date.now() - startedAt, responseStatus: 403 })
-    return new Response(JSON.stringify({ error: `Proyecto '${proyecto.slug}' no tiene permiso para ${operacion} en ${tabla}` }), {
+  // 8. Validar permisos de lectura
+  const tablasPermitidas = proyecto.permisos as string[] | undefined
+  if (!Array.isArray(tablasPermitidas) || !tablasPermitidas.includes(tabla)) {
+    await logRequest(supabase, { ip, proyectoSlug: proyecto.slug, tabla: tabla || null, exito: false, error: 'Sin permiso de lectura para esta tabla', duracionMs: Date.now() - startedAt, responseStatus: 403 })
+    return new Response(JSON.stringify({ error: `Proyecto '${proyecto.slug}' no tiene permiso de lectura sobre '${tabla}'` }), {
       status: 403,
       headers: { 'Content-Type': 'application/json' }
     })
   }
 
-  // 9. Ejecutar operación
+  // 9. Ejecutar SELECT
   let result: ApiResponse = {}
   let status = 200
 
   try {
-    switch (operacion) {
-      case 'select': {
-        result = await execSelect(supabase, tabla!, datos)
-        break
-      }
-      case 'insert': {
-        result = await execInsert(supabase, tabla!, datos)
-        break
-      }
-      case 'update': {
-        result = await execUpdate(supabase, tabla!, datos)
-        break
-      }
-      case 'delete': {
-        result = await execDelete(supabase, tabla!, datos)
-        break
-      }
-      case 'rpc': {
-        result = await execRpc(supabase, datos)
-        break
-      }
-    }
-
+    result = await execSelect(supabase, tabla, datos)
     if (result.error) {
       status = 400
     }
@@ -215,7 +187,6 @@ Deno.serve(async (req: Request) => {
   await logRequest(supabase, {
     ip,
     proyectoSlug: proyecto.slug,
-    operacion,
     tabla: tabla || null,
     exito: status < 400 && !result.error,
     error: result.error || null,
@@ -239,7 +210,7 @@ Deno.serve(async (req: Request) => {
   })
 })
 
-// ---- Ejecutores de operaciones ----
+// ---- Ejecutor de lectura ----
 
 async function execSelect(
   supabase: SupabaseClient,
@@ -272,82 +243,11 @@ async function execSelect(
   return { data }
 }
 
-async function execInsert(
-  supabase: SupabaseClient,
-  tabla: string,
-  datos: Record<string, unknown>
-): Promise<ApiResponse> {
-  const payload = datos.datos ?? datos
-  const { data, error } = await supabase.from(tabla).insert(payload).select()
-  if (error) return { error: error.message }
-  return { data }
-}
-
-async function execUpdate(
-  supabase: SupabaseClient,
-  tabla: string,
-  datos: Record<string, unknown>
-): Promise<ApiResponse> {
-  const filtros = (datos.filtros as Record<string, unknown>) || {}
-  const payload = (datos.datos as Record<string, unknown>) || {}
-
-  if (Object.keys(filtros).length === 0) {
-    return { error: 'Update requiere filtros' }
-  }
-
-  let query = supabase.from(tabla).update(payload)
-
-  for (const [key, value] of Object.entries(filtros)) {
-    query = query.eq(key, value)
-  }
-
-  const { data, error } = await query.select()
-  if (error) return { error: error.message }
-  return { data }
-}
-
-async function execDelete(
-  supabase: SupabaseClient,
-  tabla: string,
-  datos: Record<string, unknown>
-): Promise<ApiResponse> {
-  const filtros = (datos.filtros as Record<string, unknown>) || {}
-
-  if (Object.keys(filtros).length === 0) {
-    return { error: 'Delete requiere filtros' }
-  }
-
-  let query = supabase.from(tabla).delete()
-
-  for (const [key, value] of Object.entries(filtros)) {
-    query = query.eq(key, value)
-  }
-
-  const { data, error } = await query.select()
-  if (error) return { error: error.message }
-  return { data }
-}
-
-async function execRpc(
-  supabase: SupabaseClient,
-  datos: Record<string, unknown>
-): Promise<ApiResponse> {
-  const nombre = datos.nombre as string
-  const params = (datos.params as Record<string, unknown>) || {}
-
-  if (!nombre) return { error: 'RPC requiere nombre de función' }
-
-  const { data, error } = await supabase.rpc(nombre, params)
-  if (error) return { error: error.message }
-  return { data }
-}
-
 // ---- Auditoría ----
 
 interface LogPayload {
   ip: string
   proyectoSlug: string | null
-  operacion: string
   tabla: string | null
   exito: boolean
   error: string | null
@@ -363,7 +263,7 @@ async function logRequest(supabase: SupabaseClient, payload: LogPayload) {
       ip: payload.ip,
       metodo: 'POST',
       tabla: payload.tabla,
-      operacion: payload.operacion,
+      operacion: 'select',
       exito: payload.exito,
       error: payload.error,
       duracion_ms: payload.duracionMs,

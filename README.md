@@ -1,19 +1,19 @@
 <div align="center">
-  <img src="src/assets/Nexus_wordmark.png" width="120" alt="Nexus Logo">
+  <img src="src/assets/Nexus_logo.png" width="120" alt="Nexus Logo">
   <br><br>
   
   <p><strong>Base de Datos Escolar Maestra</strong></p>
   <p>Backend centralizado en Supabase con buscador web integrado.<br>
-  Conecta alumnos, personal, cursos, materias, evaluaciones y asistencias en un solo lugar.</p>
+  Conecta alumnos, responsables, personal, cursos y materias en un solo lugar.</p>
 </div>
 
 ---
 
 ## Qué es Nexus
 
-Nexus es la capa de datos escolar central del ecosistema. Otros proyectos —como <strong>GIE</strong> (Gestor de Informes Escolares) y desarrollos de equipos externos— se conectan a través del <strong>API Gateway</strong> de Nexus, un sistema de API keys con permisos granulares que garantiza acceso controlado sin exponer credenciales de Supabase.
+Nexus es la capa de datos escolar central del ecosistema. Otros proyectos —como <strong>GIE</strong> (Gestor de Informes Escolares) y desarrollos de equipos externos— se conectan a través del <strong>API Gateway</strong> de Nexus, un sistema de API keys con permisos de solo lectura por tabla que garantiza acceso controlado sin exponer credenciales de Supabase.
 
-El proyecto incluye tanto el <strong>schema PostgreSQL</strong> (tablas, relaciones, RLS e índices) como un <strong>frontend de búsqueda</strong> con diseño propio, filtros por tabla y estadísticas en tiempo real.
+El proyecto incluye tanto el <strong>schema PostgreSQL</strong> (tablas, relaciones, RLS e índices) como un <strong>frontend de búsqueda de solo lectura</strong> con diseño propio, filtros por tabla y estadísticas en tiempo real. No permite crear, editar ni eliminar registros desde la interfaz web.
 
 ---
 
@@ -25,10 +25,19 @@ El proyecto incluye tanto el <strong>schema PostgreSQL</strong> (tablas, relacio
 | <strong>Alumnos</strong> | Datos personales, contacto y vinculación al curso |
 | <strong>Personal</strong> | Docentes, preceptores, directivos y administrativos |
 | <strong>Materias</strong> | Asignaturas del plan de estudios |
-| <strong>Evaluaciones</strong> | Notas por alumno y materia (parciales, finales, TPs, etc.) |
-| <strong>Asistencias</strong> | Registro diario de presente, ausente, tarde, justificado |
+| <strong>Responsables</strong> | Padres, madres y tutores de los alumnos |
 
-Las tablas están relacionadas mediante claves foráneas y cuentan con <strong>Row Level Security</strong> para controlar el acceso por rol.
+> Evaluaciones y asistencias están planificadas pero aún no implementadas.
+
+Además, el schema incluye tablas de soporte para la gestión de integraciones:
+
+| Entidad | Descripción |
+|---------|-------------|
+| <strong>Proyectos</strong> | Sistemas externos autorizados con su API key y permisos JSONB |
+| <strong>Sincronizaciones</strong> | Mapeo de IDs locales de Nexus con IDs remotos de otros sistemas |
+| <strong>API Logs</strong> | Auditoría automática de cada request al gateway |
+
+Todas las tablas están relacionadas mediante claves foráneas y cuentan con <strong>Row Level Security</strong> para controlar el acceso por rol.
 
 ---
 
@@ -37,8 +46,8 @@ Las tablas están relacionadas mediante claves foráneas y cuentan con <strong>R
 Una interfaz dark-mode inspirada en la identidad visual de Nexus permite explorar los datos sin escribir SQL:
 
 - <strong>Sidebar</strong> con navegación entre tablas y filtros contextuales
-- <strong>Búsqueda</strong> por nombre, apellido, DNI, email, rol, especialidad
-- <strong>Filtros dinámicos</strong> cargados desde la base de datos (especialidades, divisiones, años, roles, estados)
+- <strong>Búsqueda</strong> por nombre, apellido, DNI, email, especialidad
+- <strong>Filtros dinámicos</strong> cargados desde la base de datos (especialidades, divisiones, años, turnos, localidades)
 - <strong>Stats</strong> automáticas al cargar la página
 - <strong>Responsive</strong>: sidebar fijo en desktop, drawer en móvil
 
@@ -48,10 +57,28 @@ Una interfaz dark-mode inspirada en la identidad visual de Nexus permite explora
 
 Nexus no trabaja solo. Proyectos como <strong>GIE</strong> (Gestor de Informes Escolares) consumen datos maestros a través de la Edge Function <code>api-nexus</code> usando una API key propia, sin acceder directamente a la base de datos.
 
-Cada proyecto externo recibe una <strong>API key independiente</strong> con permisos declarativos por tabla y operación. Esto permite que cada equipo evolucione su aplicación sin depender del schema de los demás, siempre alineados en los datos base, y sin compartir credenciales de Supabase.
+Cada proyecto externo recibe una <strong>API key independiente</strong> con permisos declarativos por tabla (solo lectura). Esto permite que cada equipo evolucione su aplicación sin depender del schema de los demás, siempre alineados en los datos base, y sin compartir credenciales de Supabase.
 
-📖 Ver <a href="docs/api-externos.md">docs/api-externos.md</a> para integrar tu proyecto.  
+### Cómo integrar un proyecto externo
+
+1. <strong>Entrevista</strong>: el regente de Nexus entrevista al equipo para entender qué datos necesita leer y con qué volumen.
+2. <strong>Alta</strong>: se crea el proyecto en la tabla <code>proyectos</code> con una API key y un JSONB de permisos.
+3. <strong>Entrega</strong>: el equipo externo recibe la URL del gateway y su <code>x-api-key</code> secreta.
+4. <strong>Auditoría</strong>: cada request queda registrado en <code>api_logs</code> para control y diagnóstico.
+
+📖 Ver <a href="docs/api-externos.md">docs/api-externos.md</a> para la documentación técnica completa de integración.  
 🎓 Ver <a href="docs/faq-para-companeros.md">docs/faq-para-companeros.md</a> si es la primera vez que conectás un proyecto a una API.
+
+---
+
+## Seguridad y auditoría
+
+- <strong>Acceso cerrado</strong>: el frontend solo está disponible para usuarios autenticados con rol <code>regente</code>.
+- <strong>API keys independientes</strong>: cada proyecto externo tiene su propia clave, revocable y roturable.
+- <strong>Permisos por tabla</strong>: se define qué tablas puede leer cada proyecto.
+- <strong>Restricción por IP</strong>: opcional, se puede limitar el origen de los requests.
+- <strong>Rate limiting</strong>: 100 requests por minuto por IP.
+- <strong>Auditoría completa</strong>: en <code>api_logs</code> se guardan proyecto, IP, operación, tabla, body, status, error y duración.
 
 ---
 

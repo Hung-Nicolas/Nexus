@@ -2,7 +2,7 @@ import { supabase } from './lib/supabase.js';
 
 // Estado
 let _perfil = null;
-let _callbacks = [];
+const _callbacks = [];
 let _cargandoPerfil = false;
 const PERFIL_CACHE_KEY = 'nexus-perfil-cache';
 
@@ -37,16 +37,6 @@ function notify(estado, perfil) {
   _callbacks.forEach(cb => cb(estado, perfil));
 }
 
-function perfilFallback(user) {
-  return {
-    id: user.id,
-    email: user.email || 'usuario@nexus.com',
-    nombre: user.user_metadata?.nombre || user.email?.split('@')[0] || 'Usuario',
-    apellido: user.user_metadata?.apellido || 'Sin Perfil',
-    rol: 'regente',
-  };
-}
-
 function withTimeout(promise, ms, label) {
   return Promise.race([
     promise,
@@ -73,17 +63,11 @@ async function cargarPerfil(user) {
     const t1 = performance.now();
     console.log(`[Nexus Debug] cargarPerfil respondió en ${Math.round(t1 - t0)}ms → data:`, data, '| error:', error);
 
-    if (error) {
-      console.warn('[Nexus Debug] cargarPerfil error, usando fallback. Error:', error.message);
-      _perfil = perfilFallback(user);
-      notify('signed_in', _perfil);
-      return;
-    }
-
-    if (!data) {
-      console.warn('[Nexus Debug] cargarPerfil sin datos, usando fallback');
-      _perfil = perfilFallback(user);
-      notify('signed_in', _perfil);
+    if (error || !data) {
+      console.warn('[Nexus Debug] cargarPerfil sin perfil válido. Error:', error?.message || 'sin datos');
+      _perfil = null;
+      limpiarPerfilCache();
+      notify('signed_out', null);
       return;
     }
 
@@ -100,8 +84,9 @@ async function cargarPerfil(user) {
     notify('signed_in', _perfil);
   } catch (err) {
     console.warn('[Nexus Debug] cargarPerfil excepción/timeout:', err.message);
-    _perfil = perfilFallback(user);
-    notify('signed_in', _perfil);
+    _perfil = null;
+    limpiarPerfilCache();
+    notify('signed_out', null);
   } finally {
     _cargandoPerfil = false;
   }
@@ -186,27 +171,10 @@ export async function restaurarSesion() {
     console.log('[Nexus Debug] Sesión activa encontrada, user.id:', session.user.id);
     await cargarPerfil(session.user);
 
-    // Si cargarPerfil falló pero hay sesión, usar cache como fallback inmediato
-    if (!_perfil) {
-      const cache = leerPerfilCache();
-      if (cache && cache.id === session.user.id) {
-        console.log('[Nexus Debug] Usando perfil cacheado como fallback');
-        _perfil = cache;
-        notify('signed_in', _perfil);
-      }
-    }
-
     return _perfil;
   } catch (err) {
     console.warn('[Nexus Debug] restaurarSesion error/timeout:', err.message);
-    // Si hay timeout pero tenemos cache, intentar usarlo igual
-    const cache = leerPerfilCache();
-    if (cache) {
-      console.log('[Nexus Debug] Timeout con cache disponible, usando cache');
-      _perfil = cache;
-      notify('signed_in', _perfil);
-      return _perfil;
-    }
+    limpiarPerfilCache();
     notify('signed_out', null);
     return null;
   }
@@ -224,37 +192,6 @@ supabase.auth.onAuthStateChange(async (event, session) => {
   }
 });
 
-// ========== ADMIN: GESTION DE USUARIOS (solo regentes) ==========
-
-export async function listarUsuarios() {
-  const { data, error } = await supabase.rpc('listar_usuarios_completos');
-  if (!error && data) return { data, error: null };
-  return await supabase.from('perfiles').select('*').order('created_at', { ascending: false });
-}
-
-export async function crearUsuario(email, password, nombre, apellido) {
-  const { data, error } = await supabase.auth.signUp({
-    email,
-    password,
-    options: { data: { nombre, apellido } }
-  });
-  if (error) throw error;
-  return data.user;
-}
-
-export async function eliminarUsuario(userId) {
-  const { error } = await supabase.rpc('eliminar_usuario_completo', { user_id: userId });
-  if (error) throw error;
-}
-
-export async function cambiarPasswordUsuario(userId, newPassword) {
-  const { error } = await supabase.rpc('actualizar_password_usuario', { user_id: userId, new_password: newPassword });
-  if (error) throw error;
-}
-
-export async function sincronizarPerfil(userId, email, nombre, apellido) {
-  const { error } = await supabase.rpc('sincronizar_perfil', {
-    p_id: userId, p_email: email, p_nombre: nombre, p_apellido: apellido, p_rol: 'regente'
-  });
-  if (error) throw error;
-}
+// Nota: el frontend de Nexus es de solo lectura.
+// La gestión de usuarios (crear, eliminar, cambiar contraseñas)
+// se realiza desde Supabase Dashboard, no desde la app.

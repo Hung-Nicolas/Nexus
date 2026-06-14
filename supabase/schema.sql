@@ -26,7 +26,8 @@ CREATE TABLE IF NOT EXISTS public.domicilios (
 
 -- 3. TABLA ALUMNOS
 CREATE TABLE IF NOT EXISTS public.alumnos (
-    dni INTEGER PRIMARY KEY,
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    dni INTEGER NOT NULL UNIQUE,
     nombre TEXT NOT NULL,
     apellido TEXT NOT NULL,
     email TEXT,
@@ -53,7 +54,8 @@ CREATE TABLE IF NOT EXISTS public.roles (
 
 -- 5. TABLA PERSONAL
 CREATE TABLE IF NOT EXISTS public.personal (
-    dni INTEGER PRIMARY KEY,
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    dni INTEGER NOT NULL UNIQUE,
     nombre TEXT NOT NULL,
     apellido TEXT NOT NULL,
     email TEXT NOT NULL UNIQUE,
@@ -67,20 +69,12 @@ CREATE TABLE IF NOT EXISTS public.personal (
 
 -- 5b. TABLA RELACION PERSONAL - ROL (N:M)
 CREATE TABLE IF NOT EXISTS public.personal_rol (
-    dni_personal INTEGER REFERENCES public.personal(dni) ON DELETE CASCADE ON UPDATE CASCADE,
+    id_personal UUID REFERENCES public.personal(id) ON DELETE CASCADE ON UPDATE CASCADE,
     id_rol INTEGER REFERENCES public.roles(id_rol) ON DELETE CASCADE ON UPDATE CASCADE,
-    PRIMARY KEY (dni_personal, id_rol)
+    PRIMARY KEY (id_personal, id_rol)
 );
 
--- 6. TABLA CATEGORIAS
-CREATE TABLE IF NOT EXISTS public.categorias (
-    id_categoria SERIAL PRIMARY KEY,
-    nombre TEXT NOT NULL UNIQUE,
-    color TEXT NOT NULL DEFAULT '#3b82f6',
-    created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now())
-);
-
--- 7. TABLA MATERIAS
+-- 6. TABLA MATERIAS
 CREATE TABLE IF NOT EXISTS public.materias (
     id_materia SERIAL PRIMARY KEY,
     nombre TEXT NOT NULL UNIQUE,
@@ -90,15 +84,15 @@ CREATE TABLE IF NOT EXISTS public.materias (
 
 -- 8. TABLA RELACION PERSONAL - MATERIA (N:M)
 CREATE TABLE IF NOT EXISTS public.personal_materia (
-    dni_personal INTEGER REFERENCES public.personal(dni) ON DELETE CASCADE ON UPDATE CASCADE,
+    id_personal UUID REFERENCES public.personal(id) ON DELETE CASCADE ON UPDATE CASCADE,
     id_materia INTEGER REFERENCES public.materias(id_materia) ON DELETE CASCADE ON UPDATE CASCADE,
-    PRIMARY KEY (dni_personal, id_materia)
+    PRIMARY KEY (id_personal, id_materia)
 );
 
 -- 9. TABLA RESPONSABLES (padres/tutores)
 CREATE TABLE IF NOT EXISTS public.responsables (
-    id_responsable SERIAL PRIMARY KEY,
-    dni_alumno INTEGER REFERENCES public.alumnos(dni) ON DELETE CASCADE ON UPDATE CASCADE,
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id_alumno UUID REFERENCES public.alumnos(id) ON DELETE CASCADE ON UPDATE CASCADE,
     nombre TEXT NOT NULL,
     apellido TEXT NOT NULL,
     telefono TEXT,
@@ -167,7 +161,7 @@ CREATE INDEX IF NOT EXISTS idx_proyectos_api_key ON public.proyectos(api_key);
 CREATE INDEX IF NOT EXISTS idx_proyectos_slug ON public.proyectos(slug);
 CREATE INDEX IF NOT EXISTS idx_api_logs_proyecto ON public.api_logs(proyecto_slug, created_at);
 CREATE INDEX IF NOT EXISTS idx_api_logs_created_at ON public.api_logs(created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_personal_rol_dni_personal ON public.personal_rol(dni_personal);
+CREATE INDEX IF NOT EXISTS idx_personal_rol_id_personal ON public.personal_rol(id_personal);
 CREATE INDEX IF NOT EXISTS idx_personal_rol_id_rol ON public.personal_rol(id_rol);
 
 -- ============================================================
@@ -177,7 +171,6 @@ ALTER TABLE public.cursos ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.alumnos ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.personal ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.domicilios ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.categorias ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.materias ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.roles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.personal_rol ENABLE ROW LEVEL SECURITY;
@@ -216,7 +209,7 @@ BEGIN
         IF p_accion = 'SELECT' THEN
             RETURN p_tabla IN (
                 'alumnos', 'personal', 'cursos', 'materias',
-                'categorias', 'roles', 'domicilios', 'responsables',
+                'roles', 'domicilios', 'responsables',
                 'sincronizaciones', 'perfiles',
                 'personal_rol', 'personal_materia'
             );
@@ -273,16 +266,6 @@ DROP POLICY IF EXISTS "domicilios_update" ON public.domicilios;
 CREATE POLICY "domicilios_update" ON public.domicilios FOR UPDATE USING (public.tiene_permiso('domicilios', 'UPDATE'));
 DROP POLICY IF EXISTS "domicilios_delete" ON public.domicilios;
 CREATE POLICY "domicilios_delete" ON public.domicilios FOR DELETE USING (public.tiene_permiso('domicilios', 'DELETE'));
-
--- CATEGORIAS
-DROP POLICY IF EXISTS "categorias_select" ON public.categorias;
-CREATE POLICY "categorias_select" ON public.categorias FOR SELECT USING (public.tiene_permiso('categorias', 'SELECT'));
-DROP POLICY IF EXISTS "categorias_insert" ON public.categorias;
-CREATE POLICY "categorias_insert" ON public.categorias FOR INSERT WITH CHECK (public.tiene_permiso('categorias', 'INSERT'));
-DROP POLICY IF EXISTS "categorias_update" ON public.categorias;
-CREATE POLICY "categorias_update" ON public.categorias FOR UPDATE USING (public.tiene_permiso('categorias', 'UPDATE'));
-DROP POLICY IF EXISTS "categorias_delete" ON public.categorias;
-CREATE POLICY "categorias_delete" ON public.categorias FOR DELETE USING (public.tiene_permiso('categorias', 'DELETE'));
 
 -- MATERIAS
 DROP POLICY IF EXISTS "materias_select" ON public.materias;

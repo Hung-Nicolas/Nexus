@@ -129,11 +129,6 @@
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
               Domicilios
             </button>
-            <div class="nx-sidebar-label" style="margin-top: 12px;">Administración</div>
-            <button class="nx-sidebar-link" data-section="usuarios">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-              Usuarios
-            </button>
             <button class="nx-sidebar-link" data-section="info">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
               Acerca de
@@ -230,56 +225,6 @@
             </section>
           </div>
 
-          <!-- SECCION: Usuarios -->
-          <div id="sectionUsuarios" class="hidden">
-            <section class="nx-hero" style="padding-bottom: 24px;">
-              <div class="nx-hero-content">
-                <h1 class="nx-hero-title">Gestión de Usuarios</h1>
-                <p class="nx-hero-subtitle">Creá, editá y administrá los usuarios del sistema.</p>
-              </div>
-            </section>
-
-            <section class="nx-results" style="padding-bottom: 56px;">
-              <div class="nx-results-header">
-                <h2 class="nx-results-title">Usuarios del sistema</h2>
-                <button id="btnNuevoUsuario" class="nx-login-btn" style="padding: 8px 16px; font-size: 13px;">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:middle;margin-right:4px;"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                  Nuevo usuario
-                </button>
-              </div>
-
-              <!-- Formulario crear usuario -->
-              <div id="formUsuarioContainer" class="hidden" style="margin-bottom: 20px; padding: 20px; background: var(--nx-bg-card); border: 1px solid var(--nx-border); border-radius: var(--nx-radius-sm);">
-                <h3 style="font-size: 15px; margin-bottom: 14px; color: var(--nx-text);">Crear nuevo usuario</h3>
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px;">
-                  <div class="nx-login-field">
-                    <label class="nx-login-label">Nombre</label>
-                    <input type="text" id="newNombre" class="nx-login-input" placeholder="Nombre">
-                  </div>
-                  <div class="nx-login-field">
-                    <label class="nx-login-label">Apellido</label>
-                    <input type="text" id="newApellido" class="nx-login-input" placeholder="Apellido">
-                  </div>
-                  <div class="nx-login-field">
-                    <label class="nx-login-label">Email</label>
-                    <input type="email" id="newEmail" class="nx-login-input" placeholder="email@ejemplo.com">
-                  </div>
-                  <div class="nx-login-field">
-                    <label class="nx-login-label">Contraseña</label>
-                    <input type="password" id="newPassword" class="nx-login-input" placeholder="Min. 6 caracteres">
-                  </div>
-                </div>
-                <div style="margin-top: 14px; display: flex; gap: 10px;">
-                  <button id="btnGuardarUsuario" class="nx-login-btn" style="padding: 10px 20px;">Crear usuario</button>
-                  <button id="btnCancelarUsuario" class="nx-login-btn nx-login-btn-outline" style="padding: 10px 20px;">Cancelar</button>
-                </div>
-                <p id="usuarioError" class="nx-login-error" style="margin-top: 10px;"></p>
-              </div>
-
-              <div class="nx-results-grid" id="usuariosGrid"></div>
-            </section>
-          </div>
-
           <!-- SECCION: Info Nexus (Acerca de / Novedades) -->
           <div id="sectionInfo" class="hidden">
             <section class="nx-hero" style="padding-bottom: 24px;">
@@ -317,22 +262,6 @@
             <p class="nx-footer-text">Nexus — Base de Datos Escolar Maestra</p>
           </footer>
         </main>
-      </div>
-    </div>
-
-    <!-- ========== MODAL CRUD REUTILIZABLE ========== -->
-    <div id="modalCRUD" class="nx-modal hidden">
-      <div class="nx-modal-backdrop" id="modalBackdrop"></div>
-      <div class="nx-modal-card">
-        <div class="nx-modal-header">
-          <h3 id="modalTitulo">Nuevo</h3>
-          <button id="modalCerrar" class="nx-modal-close" aria-label="Cerrar">×</button>
-        </div>
-        <div id="modalBody" class="nx-modal-body"></div>
-        <div class="nx-modal-footer">
-          <button id="modalCancelar" class="nx-login-btn nx-login-btn-outline" style="padding: 10px 20px; font-size: 13px;">Cancelar</button>
-          <button id="modalGuardar" class="nx-login-btn" style="padding: 10px 20px; font-size: 13px;">Guardar</button>
-        </div>
       </div>
     </div>
 

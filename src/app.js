@@ -1,5 +1,5 @@
 import { supabase } from './lib/supabase.js';
-import { iniciarSesion, cerrarSesion, restaurarSesion, getPerfil, onAuthChange, listarUsuarios, crearUsuario, eliminarUsuario, cambiarPasswordUsuario } from './auth.js';
+import { iniciarSesion, cerrarSesion, restaurarSesion, getPerfil, onAuthChange } from './auth.js';
 import { NEXUS_INFO } from './info-nexus.js';
 import './styles.css';
 
@@ -13,8 +13,6 @@ let busquedaId = 0;
 let abortControllerBusqueda = null;
 const cacheResultados = new Map(); // clave: "tabla|termino|filtrosJSON" → { data, timestamp }
 const CACHE_TTL_MS = 30000; // 30 segundos de cache
-let usuariosLista = [];
-let mostrarFormUsuario = false;
 
 // Referencias DOM
 const loginScreen = document.getElementById('loginScreen');
@@ -49,7 +47,6 @@ const resultsCount = document.getElementById('resultsCount');
 const resultsActions = document.getElementById('resultsActions');
 const sidebarLinks = document.querySelectorAll('.nx-sidebar-link');
 const sectionBuscador = document.getElementById('sectionBuscador');
-const sectionUsuarios = document.getElementById('sectionUsuarios');
 const sectionDashboard = document.getElementById('sectionDashboard');
 const sectionInfo = document.getElementById('sectionInfo');
 const infoSubtitle = document.getElementById('infoSubtitle');
@@ -59,22 +56,8 @@ const infoAcerca = document.getElementById('infoAcerca');
 const loginInfoVersionNovedades = document.getElementById('loginInfoVersionNovedades');
 const dashboardStatsGrid = document.getElementById('dashboardStatsGrid');
 const dashboardUltimosAlumnos = document.getElementById('dashboardUltimosAlumnos');
-const btnNuevoUsuario = document.getElementById('btnNuevoUsuario');
-const formUsuarioContainer = document.getElementById('formUsuarioContainer');
-const btnGuardarUsuario = document.getElementById('btnGuardarUsuario');
-const btnCancelarUsuario = document.getElementById('btnCancelarUsuario');
-const usuarioError = document.getElementById('usuarioError');
-const usuariosGrid = document.getElementById('usuariosGrid');
 
 // Modal CRUD
-const modalCRUD = document.getElementById('modalCRUD');
-const modalTitulo = document.getElementById('modalTitulo');
-const modalBody = document.getElementById('modalBody');
-const modalCerrar = document.getElementById('modalCerrar');
-const modalCancelar = document.getElementById('modalCancelar');
-const modalGuardar = document.getElementById('modalGuardar');
-const modalBackdrop = document.getElementById('modalBackdrop');
-let modalOnGuardar = null;
 
 
 
@@ -82,7 +65,7 @@ let modalOnGuardar = null;
 const configTablas = {
   alumnos: {
     titulo: 'Alumnos',
-    campos: 'dni, nombre, apellido, email, especialidad, division, turno, email_padre, telefono, fecha_nacimiento, genero, nacionalidad, id_domicilio, id_curso',
+    campos: 'id, dni, nombre, apellido, email, especialidad, division, turno, email_padre, telefono, fecha_nacimiento, genero, nacionalidad, id_domicilio, id_curso',
     orden: { column: 'apellido', ascending: true },
     buscarEn: ['nombre', 'apellido', 'email'],
     filtros: [
@@ -90,24 +73,7 @@ const configTablas = {
       { key: 'especialidad', label: 'Especialidad', tipo: 'select', opciones: [] },
       { key: 'division', label: 'División', tipo: 'select', opciones: [] },
     ],
-    pk: 'dni',
-    editable: true,
-    camposFormulario: [
-      { key: 'dni', label: 'DNI', tipo: 'number', required: true },
-      { key: 'nombre', label: 'Nombre', tipo: 'text', required: true },
-      { key: 'apellido', label: 'Apellido', tipo: 'text', required: true },
-      { key: 'email', label: 'Email', tipo: 'email' },
-      { key: 'especialidad', label: 'Especialidad', tipo: 'text' },
-      { key: 'division', label: 'División', tipo: 'text', required: true },
-      { key: 'turno', label: 'Turno', tipo: 'select', opciones: ['Mañana', 'Tarde', 'Noche'], required: true },
-      { key: 'email_padre', label: 'Email del padre/tutor', tipo: 'email' },
-      { key: 'telefono', label: 'Teléfono', tipo: 'text' },
-      { key: 'fecha_nacimiento', label: 'Fecha de nacimiento', tipo: 'date' },
-      { key: 'genero', label: 'Género', tipo: 'select', opciones: ['masculino', 'femenino', 'no_binario', 'otro', 'prefiero_no_decirlo'] },
-      { key: 'nacionalidad', label: 'Nacionalidad', tipo: 'text' },
-      { key: 'id_domicilio', label: 'Domicilio', tipo: 'select', tabla: 'domicilios', labelField: 'calle,numero,localidad', valueField: 'id_domicilio' },
-      { key: 'id_curso', label: 'Curso', tipo: 'select', tabla: 'cursos', labelField: 'anio,division,turno' },
-    ],
+    pk: 'id',
     render: (row) => ({
       avatar: `${row.nombre?.[0] || ''}${row.apellido?.[0] || ''}`,
       titulo: `${row.apellido}, ${row.nombre}`,
@@ -117,26 +83,13 @@ const configTablas = {
   },
   responsables: {
     titulo: 'Responsables',
-    campos: 'id_responsable, dni_alumno, nombre, apellido, telefono, email, fecha_nacimiento, genero, nacionalidad, vinculo, id_domicilio',
+    campos: 'id, id_alumno, nombre, apellido, telefono, email, fecha_nacimiento, genero, nacionalidad, vinculo, id_domicilio',
     orden: { column: 'apellido', ascending: true },
     buscarEn: ['nombre', 'apellido', 'email', 'telefono'],
     filtros: [
       { key: 'vinculo', label: 'Vínculo', tipo: 'select', opciones: ['padre', 'madre', 'tutor', 'otro'] },
     ],
-    pk: 'id_responsable',
-    editable: true,
-    camposFormulario: [
-      { key: 'dni_alumno', label: 'Alumno (DNI)', tipo: 'select', tabla: 'alumnos', labelField: 'apellido,nombre', valueField: 'dni', required: true },
-      { key: 'nombre', label: 'Nombre', tipo: 'text', required: true },
-      { key: 'apellido', label: 'Apellido', tipo: 'text', required: true },
-      { key: 'telefono', label: 'Teléfono', tipo: 'text' },
-      { key: 'email', label: 'Email', tipo: 'email' },
-      { key: 'fecha_nacimiento', label: 'Fecha de nacimiento', tipo: 'date' },
-      { key: 'genero', label: 'Género', tipo: 'select', opciones: ['masculino', 'femenino', 'no_binario', 'otro', 'prefiero_no_decirlo'] },
-      { key: 'nacionalidad', label: 'Nacionalidad', tipo: 'text' },
-      { key: 'vinculo', label: 'Vínculo', tipo: 'select', opciones: ['padre', 'madre', 'tutor', 'otro'], required: true },
-      { key: 'id_domicilio', label: 'Domicilio', tipo: 'select', tabla: 'domicilios', labelField: 'calle,numero,localidad', valueField: 'id_domicilio' },
-    ],
+    pk: 'id',
     render: (row) => ({
       avatar: `${row.nombre?.[0] || ''}${row.apellido?.[0] || ''}`,
       titulo: `${row.apellido}, ${row.nombre}`,
@@ -146,23 +99,11 @@ const configTablas = {
   },
   personal: {
     titulo: 'Personal',
-    campos: 'dni, nombre, apellido, email, telefono, fecha_nacimiento, genero, nacionalidad, id_domicilio',
+    campos: 'id, dni, nombre, apellido, email, telefono, fecha_nacimiento, genero, nacionalidad, id_domicilio',
     orden: { column: 'apellido', ascending: true },
     buscarEn: ['nombre', 'apellido', 'email'],
     filtros: [],
-    pk: 'dni',
-    editable: true,
-    camposFormulario: [
-      { key: 'dni', label: 'DNI', tipo: 'number', required: true },
-      { key: 'nombre', label: 'Nombre', tipo: 'text', required: true },
-      { key: 'apellido', label: 'Apellido', tipo: 'text', required: true },
-      { key: 'email', label: 'Email', tipo: 'email', required: true },
-      { key: 'telefono', label: 'Teléfono', tipo: 'text' },
-      { key: 'fecha_nacimiento', label: 'Fecha de nacimiento', tipo: 'date' },
-      { key: 'genero', label: 'Género', tipo: 'select', opciones: ['masculino', 'femenino', 'no_binario', 'otro', 'prefiero_no_decirlo'] },
-      { key: 'nacionalidad', label: 'Nacionalidad', tipo: 'text' },
-      { key: 'id_domicilio', label: 'Domicilio', tipo: 'select', tabla: 'domicilios', labelField: 'calle,numero,localidad', valueField: 'id_domicilio' },
-    ],
+    pk: 'id',
     render: (row) => ({
       avatar: `${row.nombre?.[0] || ''}${row.apellido?.[0] || ''}`,
       titulo: `${row.apellido}, ${row.nombre}`,
@@ -181,13 +122,6 @@ const configTablas = {
       { key: 'anio', label: 'Año', tipo: 'select', opciones: [] },
     ],
     pk: 'id_curso',
-    editable: true,
-    camposFormulario: [
-      { key: 'anio', label: 'Año', tipo: 'number', required: true },
-      { key: 'division', label: 'División', tipo: 'text', required: true },
-      { key: 'turno', label: 'Turno', tipo: 'select', opciones: ['Mañana', 'Tarde', 'Noche'], required: true },
-      { key: 'especialidad', label: 'Especialidad', tipo: 'text' },
-    ],
     render: (row) => ({
       avatar: `${row.anio || ''}°`,
       titulo: `${row.anio || ''}° ${row.division || ''} · ${row.turno || ''}`,
@@ -202,11 +136,6 @@ const configTablas = {
     buscarEn: ['nombre', 'descripcion'],
     filtros: [],
     pk: 'id_materia',
-    editable: true,
-    camposFormulario: [
-      { key: 'nombre', label: 'Nombre', tipo: 'text', required: true },
-      { key: 'descripcion', label: 'Descripción', tipo: 'textarea' },
-    ],
     render: (row) => ({
       avatar: row.nombre?.[0] || 'M',
       titulo: row.nombre,
@@ -221,11 +150,6 @@ const configTablas = {
     buscarEn: ['nombre', 'descripcion'],
     filtros: [],
     pk: 'id_rol',
-    editable: true,
-    camposFormulario: [
-      { key: 'nombre', label: 'Nombre', tipo: 'text', required: true },
-      { key: 'descripcion', label: 'Descripción', tipo: 'textarea' },
-    ],
     render: (row) => ({
       avatar: row.nombre?.[0] || 'R',
       titulo: row.nombre,
@@ -242,13 +166,6 @@ const configTablas = {
       { key: 'localidad', label: 'Localidad', tipo: 'select', opciones: [] },
     ],
     pk: 'id_domicilio',
-    editable: true,
-    camposFormulario: [
-      { key: 'calle', label: 'Calle', tipo: 'text', required: true },
-      { key: 'numero', label: 'Número', tipo: 'number', required: true },
-      { key: 'departamento', label: 'Departamento', tipo: 'text' },
-      { key: 'localidad', label: 'Localidad', tipo: 'text', required: true },
-    ],
     render: (row) => ({
       avatar: '📍',
       titulo: `${row.calle} ${row.numero}${row.departamento ? ' Dpto. ' + row.departamento : ''}`,
@@ -309,7 +226,7 @@ function updateUserUI(perfil) {
   sidebarUser.style.display = 'flex';
   userAvatar.textContent = `${perfil.nombre?.[0] || ''}${perfil.apellido?.[0] || ''}`;
   userName.textContent = `${perfil.apellido}, ${perfil.nombre}`;
-  userRole.textContent = 'Regente';
+  userRole.textContent = capitalizar(perfil.rol || 'usuario');
 }
 
 // Login
@@ -417,27 +334,17 @@ function mostrarSeccion(seccion) {
   if (seccion === 'dashboard') {
     sectionDashboard.classList.remove('hidden');
     sectionBuscador.classList.add('hidden');
-    sectionUsuarios.classList.add('hidden');
     sectionInfo.classList.add('hidden');
     mainFilters.style.display = 'none';
     cargarDashboard();
   } else if (seccion === 'buscador') {
     sectionDashboard.classList.add('hidden');
     sectionBuscador.classList.remove('hidden');
-    sectionUsuarios.classList.add('hidden');
     sectionInfo.classList.add('hidden');
     mainFilters.style.display = '';
-  } else if (seccion === 'usuarios') {
-    sectionDashboard.classList.add('hidden');
-    sectionBuscador.classList.add('hidden');
-    sectionUsuarios.classList.remove('hidden');
-    sectionInfo.classList.add('hidden');
-    mainFilters.style.display = 'none';
-    cargarUsuarios();
   } else if (seccion === 'info') {
     sectionDashboard.classList.add('hidden');
     sectionBuscador.classList.add('hidden');
-    sectionUsuarios.classList.add('hidden');
     sectionInfo.classList.remove('hidden');
     mainFilters.style.display = 'none';
     renderizarInfoNexus();
@@ -478,7 +385,7 @@ async function cargarDashboard() {
       supabase.from('personal').select('dni', { count: 'exact', head: true }),
       supabase.from('cursos').select('id_curso', { count: 'exact', head: true }),
       supabase.from('materias').select('id_materia', { count: 'exact', head: true }),
-      supabase.from('responsables').select('id_responsable', { count: 'exact', head: true }),
+      supabase.from('responsables').select('id', { count: 'exact', head: true }),
     ]);
 
     const { data: ultimosAlumnos } = await supabase
@@ -673,54 +580,21 @@ function renderizarGrid(data, config) {
       const sc = t.style === 'purple' ? 'nx-card-tag-purple' : t.style === 'amber' ? 'nx-card-tag-amber' : '';
       return `<span class="nx-card-tag ${sc}">${escapeHtml(t.text)}</span>`;
     }).join('');
-    const pkValue = row[config.pk];
-    const acciones = config.editable ? `
-      <div class="nx-card-actions">
-        <button class="nx-card-action-btn nx-card-action-edit" title="Editar" data-pk="${escapeHtml(String(pkValue))}">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-        </button>
-        <button class="nx-card-action-btn nx-card-action-delete" title="Eliminar" data-pk="${escapeHtml(String(pkValue))}">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-        </button>
-      </div>` : '';
 
     const div = document.createElement('div');
-    div.className = 'nx-card nx-card-crud nx-card-clickable';
-    div.dataset.pk = String(pkValue);
+    div.className = 'nx-card';
     div.innerHTML = `
       <div class="nx-card-avatar">${escapeHtml(rendered.avatar)}</div>
       <div class="nx-card-body">
         <div class="nx-card-title">${escapeHtml(rendered.titulo)}</div>
         <div class="nx-card-meta">${meta}</div>
         ${tags ? `<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;">${tags}</div>` : ''}
-      </div>
-      ${acciones}`;
+      </div>`;
     fragment.appendChild(div);
   });
 
   resultsGrid.innerHTML = '';
   resultsGrid.appendChild(fragment);
-
-  // Bind click en cards → detalle
-  resultsGrid.querySelectorAll('.nx-card-clickable').forEach(card => {
-    card.addEventListener('click', () => abrirDetalleRegistro(tablaActual, card.dataset.pk));
-  });
-
-  // Bind editar/eliminar (stopPropagation para no abrir detalle)
-  if (config.editable) {
-    resultsGrid.querySelectorAll('.nx-card-action-edit').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        abrirFormularioEditar(tablaActual, btn.dataset.pk);
-      });
-    });
-    resultsGrid.querySelectorAll('.nx-card-action-delete').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        abrirModalConfirmarEliminar(tablaActual, btn.dataset.pk);
-      });
-    });
-  }
 }
 
 // ========== BUSQUEDA ==========
@@ -827,17 +701,7 @@ function cambiarTabla(nuevaTabla) {
   };
   searchInput.placeholder = placeholders[tablaActual] || 'Buscar...';
 
-  // Botón "Nuevo" para tablas editables
   resultsActions.innerHTML = '';
-  if (config?.editable) {
-    const btn = document.createElement('button');
-    btn.className = 'nx-login-btn';
-    btn.style.cssText = 'padding: 8px 16px; font-size: 13px;';
-    btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:middle;margin-right:4px;"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Nuevo ${config.titulo.toLowerCase().slice(0, -1)}`;
-    btn.addEventListener('click', () => abrirFormularioCrear(tablaActual));
-    resultsActions.appendChild(btn);
-  }
-
   renderizarFiltros();
   buscar('');
 }
@@ -861,415 +725,6 @@ searchInput.addEventListener('input', (e) => {
 searchInput.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') { searchInput.value = ''; buscar(''); searchInput.blur(); }
 });
-
-// ========== USUARIOS ==========
-async function cargarUsuarios() {
-  usuariosGrid.innerHTML = `
-    <div class="nx-empty">
-      <div class="nx-empty-icon" style="animation: nx-pulse 1.5s infinite;"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></div>
-      <p class="nx-empty-text">Cargando usuarios...</p>
-    </div>`;
-
-  try {
-    const { data, error } = await listarUsuarios();
-    if (error) throw error;
-    usuariosLista = data || [];
-
-    if (usuariosLista.length === 0) {
-      usuariosGrid.innerHTML = `<div class="nx-empty"><div class="nx-empty-icon"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></div><p class="nx-empty-text">No hay usuarios registrados</p></div>`;
-      return;
-    }
-
-    usuariosGrid.innerHTML = `
-      <div style="overflow-x: auto;">
-        <table style="width:100%;border-collapse:collapse;font-size:13px;">
-          <thead>
-            <tr style="border-bottom: 1px solid var(--nx-border); color: var(--nx-text-dim); text-align: left;">
-              <th style="padding: 10px 12px;">Usuario</th>
-              <th style="padding: 10px 12px;">Email</th>
-              <th style="padding: 10px 12px;">Rol</th>
-              <th style="padding: 10px 12px;">Estado</th>
-              <th style="padding: 10px 12px; text-align: right;">Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${usuariosLista.map(u => `
-              <tr style="border-bottom: 1px solid var(--nx-border); transition: background 0.15s;" onmouseover="this.style.background='rgba(148,163,184,0.04)'" onmouseout="this.style.background=''">
-                <td style="padding: 12px;">
-                  <div style="display:flex;align-items:center;gap:10px;">
-                    <div class="nx-card-avatar" style="width:32px;height:32px;font-size:12px;">${u.nombre?.[0] || ''}${u.apellido?.[0] || ''}</div>
-                    <span style="color:var(--nx-text);font-weight:500;">${escapeHtml(u.apellido)}, ${escapeHtml(u.nombre)}</span>
-                  </div>
-                </td>
-                <td style="padding: 12px; color: var(--nx-text-muted);">${escapeHtml(u.email)}</td>
-                <td style="padding: 12px;"><span class="nx-card-tag">${escapeHtml(capitalizar(u.rol))}</span></td>
-                <td style="padding: 12px;"><span style="color:#4ade80;font-size:12px;">●</span></td>
-                <td style="padding: 12px; text-align: right;">
-                  ${u.id !== getPerfil()?.id ? `
-                    <button class="nx-filter-reset" style="color:#f87171;" onclick="eliminarUsuarioHandler('${u.id}')">Eliminar</button>
-                  ` : '<span style="color:var(--nx-text-dim);font-size:12px;">Vos</span>'}
-                </td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-      </div>`;
-  } catch (err) {
-    console.error('[Nexus] Error usuarios:', err);
-    usuariosGrid.innerHTML = `<div class="nx-empty"><div class="nx-empty-icon" style="color:#ef4444"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg></div><p class="nx-empty-text">Error al cargar usuarios</p></div>`;
-  }
-}
-
-// Crear usuario
-btnNuevoUsuario.addEventListener('click', () => {
-  mostrarFormUsuario = !mostrarFormUsuario;
-  formUsuarioContainer.classList.toggle('hidden', !mostrarFormUsuario);
-  usuarioError.classList.remove('show');
-});
-
-btnCancelarUsuario.addEventListener('click', () => {
-  mostrarFormUsuario = false;
-  formUsuarioContainer.classList.add('hidden');
-  usuarioError.classList.remove('show');
-});
-
-btnGuardarUsuario.addEventListener('click', async () => {
-  const nombre = document.getElementById('newNombre').value.trim();
-  const apellido = document.getElementById('newApellido').value.trim();
-  const email = document.getElementById('newEmail').value.trim();
-  const password = document.getElementById('newPassword').value;
-
-  if (!nombre || !apellido || !email || !password) {
-    usuarioError.textContent = 'Completá todos los campos';
-    usuarioError.classList.add('show');
-    return;
-  }
-  if (password.length < 6) {
-    usuarioError.textContent = 'La contraseña debe tener al menos 6 caracteres';
-    usuarioError.classList.add('show');
-    return;
-  }
-
-  btnGuardarUsuario.textContent = 'Creando...';
-  try {
-    await crearUsuario(email, password, nombre, apellido);
-    mostrarToast('Usuario creado correctamente');
-    document.getElementById('newNombre').value = '';
-    document.getElementById('newApellido').value = '';
-    document.getElementById('newEmail').value = '';
-    document.getElementById('newPassword').value = '';
-    mostrarFormUsuario = false;
-    formUsuarioContainer.classList.add('hidden');
-    usuarioError.classList.remove('show');
-    cargarUsuarios();
-  } catch (err) {
-    usuarioError.textContent = err.message || 'Error al crear usuario';
-    usuarioError.classList.add('show');
-  } finally {
-    btnGuardarUsuario.textContent = 'Crear usuario';
-  }
-});
-
-// Handler global para eliminar usuario (desde HTML inline)
-window.eliminarUsuarioHandler = async (userId) => {
-  if (!confirm('¿Eliminar este usuario permanentemente?')) return;
-  try {
-    await eliminarUsuario(userId);
-    mostrarToast('Usuario eliminado');
-    cargarUsuarios();
-  } catch (err) {
-    mostrarToast(err.message || 'Error al eliminar', 'error');
-  }
-};
-
-// ========== CRUD GENÉRICO CON MODAL ==========
-
-function abrirModal(titulo, bodyHTML, onGuardar) {
-  modalTitulo.textContent = titulo;
-  modalBody.innerHTML = bodyHTML;
-  modalOnGuardar = onGuardar;
-  modalCRUD.classList.remove('hidden');
-  document.body.style.overflow = 'hidden';
-  // Focus en primer input
-  setTimeout(() => {
-    const firstInput = modalBody.querySelector('input, select, textarea');
-    firstInput?.focus();
-  }, 100);
-}
-
-function cerrarModal() {
-  modalCRUD.classList.add('hidden');
-  document.body.style.overflow = '';
-  modalOnGuardar = null;
-
-  // Restaurar botón Guardar
-  modalGuardar.classList.remove('hidden');
-
-  // Limpiar botones dinámicos de detalle
-  const footer = modalGuardar.parentElement;
-  footer.querySelector('.nx-modal-btn-editar')?.remove();
-  footer.querySelector('.nx-modal-btn-eliminar')?.remove();
-}
-
-modalCerrar.addEventListener('click', cerrarModal);
-modalCancelar.addEventListener('click', cerrarModal);
-modalBackdrop.addEventListener('click', cerrarModal);
-modalGuardar.addEventListener('click', () => {
-  if (modalOnGuardar) modalOnGuardar();
-});
-
-// Cerrar modal con Escape
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && !modalCRUD.classList.contains('hidden')) {
-    cerrarModal();
-  }
-});
-
-async function cargarOpcionesSelect(tabla, labelField, valueField = null) {
-  try {
-    const { data, error } = await supabase.from(tabla).select('*').order(labelField.split(',')[0]);
-    if (error) throw error;
-    return (data || []).map(row => {
-      const label = labelField.split(',').map(f => row[f.trim()]).filter(Boolean).join(' · ');
-      const value = valueField ? row[valueField] : row[labelField.split(',')[0].trim()];
-      return { value, label };
-    });
-  } catch (err) {
-    console.error('[Nexus] Error cargando opciones:', err);
-    return [];
-  }
-}
-
-function renderizarCampoFormulario(campo, valor = '') {
-  const valorEscapado = escapeHtml(valor);
-  const required = campo.required ? 'required' : '';
-
-  if (campo.tipo === 'textarea') {
-    return `
-      <div class="nx-login-field nx-form-field-full">
-        <label class="nx-login-label">${campo.label}${campo.required ? ' *' : ''}</label>
-        <textarea class="nx-login-input" data-campo="${campo.key}" rows="3" ${required}>${valorEscapado}</textarea>
-      </div>`;
-  }
-  if (campo.tipo === 'select') {
-    return `
-      <div class="nx-login-field">
-        <label class="nx-login-label">${campo.label}${campo.required ? ' *' : ''}</label>
-        <select class="nx-login-input" data-campo="${campo.key}" ${required}>
-          <option value="">Seleccionar...</option>
-          ${(campo.opciones || []).map(op => `<option value="${escapeHtml(op)}" ${valorEscapado === op ? 'selected' : ''}>${escapeHtml(capitalizar(op))}</option>`).join('')}
-        </select>
-      </div>`;
-  }
-  return `
-    <div class="nx-login-field">
-      <label class="nx-login-label">${campo.label}${campo.required ? ' *' : ''}</label>
-      <input type="${campo.tipo}" class="nx-login-input" data-campo="${campo.key}" value="${valorEscapado}" placeholder="${campo.label}" ${required}>
-    </div>`;
-}
-
-async function construirFormularioHTML(entidad, datos = null) {
-  const config = configTablas[entidad];
-  if (!config?.camposFormulario) return '';
-
-  const camposHTML = [];
-  for (const campo of config.camposFormulario) {
-    let valor = datos?.[campo.key] ?? '';
-
-    // Si es select con tabla, cargar opciones dinámicamente
-    if (campo.tipo === 'select' && campo.tabla) {
-      const opciones = await cargarOpcionesSelect(campo.tabla, campo.labelField, campo.valueField);
-      const optionsHTML = opciones.map(op =>
-        `<option value="${escapeHtml(String(op.value))}" ${String(valor) === String(op.value) ? 'selected' : ''}>${escapeHtml(op.label)}</option>`
-      ).join('');
-      camposHTML.push(`
-        <div class="nx-login-field">
-          <label class="nx-login-label">${campo.label}${campo.required ? ' *' : ''}</label>
-          <select class="nx-login-input" data-campo="${campo.key}" ${campo.required ? 'required' : ''}>
-            <option value="">Seleccionar...</option>
-            ${optionsHTML}
-          </select>
-        </div>`);
-    } else {
-      camposHTML.push(renderizarCampoFormulario(campo, valor));
-    }
-  }
-  return camposHTML.join('');
-}
-
-async function abrirFormularioCrear(entidad) {
-  const config = configTablas[entidad];
-  const html = await construirFormularioHTML(entidad);
-  abrirModal(`Nuevo ${config.titulo.toLowerCase().slice(0, -1)}`, html, () => guardarRegistro(entidad, true));
-}
-
-async function abrirFormularioEditar(entidad, pkValue) {
-  const config = configTablas[entidad];
-  try {
-    const { data, error } = await supabase.from(entidad).select('*').eq(config.pk, pkValue).single();
-    if (error) throw error;
-    const html = await construirFormularioHTML(entidad, data);
-    abrirModal(`Editar ${config.titulo.toLowerCase().slice(0, -1)}`, html, () => guardarRegistro(entidad, false, pkValue));
-  } catch (err) {
-    mostrarToast('Error al cargar datos', 'error');
-    console.error(err);
-  }
-}
-
-async function guardarRegistro(entidad, esNuevo, pkValue = null) {
-  const config = configTablas[entidad];
-  const datos = {};
-
-  // Leer valores del formulario
-  for (const campo of config.camposFormulario) {
-    const el = modalBody.querySelector(`[data-campo="${campo.key}"]`);
-    if (!el) continue;
-    let valor = el.value.trim();
-    if (campo.tipo === 'number') valor = valor ? parseInt(valor, 10) : null;
-    if (valor === '') valor = null;
-    datos[campo.key] = valor;
-  }
-
-  // Validar campos requeridos
-  for (const campo of config.camposFormulario) {
-    if (campo.required && !datos[campo.key]) {
-      mostrarToast(`El campo "${campo.label}" es obligatorio`, 'error');
-      const elF = modalBody.querySelector(`[data-campo="${campo.key}"]`);
-      elF?.focus();
-      return;
-    }
-  }
-
-  modalGuardar.textContent = 'Guardando...';
-  try {
-    let idLocal = pkValue;
-    if (esNuevo) {
-      const { data: nuevo, error } = await supabase.from(entidad).insert(datos).select(config.pk).single();
-      if (error) throw error;
-      idLocal = nuevo[config.pk];
-      mostrarToast(`${config.titulo} creado correctamente`);
-    } else {
-      const { error } = await supabase.from(entidad).update(datos).eq(config.pk, pkValue);
-      if (error) throw error;
-      mostrarToast(`${config.titulo} actualizado correctamente`);
-    }
-
-    limpiarCacheTabla(entidad);
-    cerrarModal();
-    buscar(searchInput.value);
-  } catch (err) {
-    console.error('[Nexus] Error guardando:', err);
-    mostrarToast(err.message || 'Error al guardar', 'error');
-  } finally {
-    modalGuardar.textContent = 'Guardar';
-  }
-}
-
-async function eliminarRegistro(entidad, pkValue) {
-  const config = configTablas[entidad];
-  if (!confirm(`¿Eliminar ${config.titulo.toLowerCase().slice(0, -1)} permanentemente?`)) return;
-  try {
-    const { error } = await supabase.from(entidad).delete().eq(config.pk, pkValue);
-    if (error) throw error;
-    mostrarToast(`${config.titulo} eliminado`);
-    limpiarCacheTabla(entidad);
-    buscar(searchInput.value);
-  } catch (err) {
-    console.error('[Nexus] Error eliminando:', err);
-    mostrarToast(err.message || 'Error al eliminar', 'error');
-  }
-}
-
-async function abrirDetalleRegistro(entidad, pkValue) {
-  const config = configTablas[entidad];
-  try {
-    const { data, error } = await supabase.from(entidad).select('*').eq(config.pk, pkValue).single();
-    if (error) throw error;
-
-    // Mapeo de campos a etiquetas legibles
-    const labels = {};
-    if (config.camposFormulario) {
-      config.camposFormulario.forEach(c => labels[c.key] = c.label);
-    }
-
-    // Renderizar cada campo
-    const camposHTML = Object.entries(data)
-      .filter(([key]) => !['created_at'].includes(key))
-      .map(([key, valor]) => {
-        const label = labels[key] || capitalizar(key.replace(/_/g, ' '));
-        let display = valor;
-        if (valor === null || valor === undefined || valor === '') display = '<span style="color:var(--nx-text-dim);font-style:italic;">—</span>';
-        else if (key.includes('fecha') || key.includes('date')) {
-          try { display = new Date(valor).toLocaleString('es-AR'); } catch (e) { display = valor; }
-        }
-        else display = escapeHtml(String(valor));
-        return `
-          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:8px 0;border-bottom:1px solid var(--nx-border);">
-            <span style="color:var(--nx-text-dim);font-size:13px;flex-shrink:0;">${escapeHtml(label)}</span>
-            <span style="color:var(--nx-text);font-size:13px;font-weight:500;text-align:right;word-break:break-word;">${display}</span>
-          </div>`;
-      }).join('');
-
-    const html = `
-      <div style="display:flex;flex-direction:column;gap:4px;">
-        ${camposHTML}
-      </div>
-    `;
-
-    abrirModal(config.titulo, html, null);
-
-    // Ocultar botón Guardar del modal de detalle
-    modalGuardar.classList.add('hidden');
-
-    // Agregar botones de acción en el footer
-    const footer = modalGuardar.parentElement;
-    let btnEditar = footer.querySelector('.nx-modal-btn-editar');
-    let btnEliminar = footer.querySelector('.nx-modal-btn-eliminar');
-
-    if (!btnEditar && config.editable) {
-      btnEditar = document.createElement('button');
-      btnEditar.className = 'nx-login-btn nx-modal-btn-editar';
-      btnEditar.style.cssText = 'padding:8px 16px;font-size:13px;margin-right:auto;';
-      btnEditar.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:middle;margin-right:4px;"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Editar`;
-      btnEditar.addEventListener('click', () => {
-        cerrarModal();
-        setTimeout(() => abrirFormularioEditar(entidad, pkValue), 150);
-      });
-      footer.insertBefore(btnEditar, modalCancelar);
-    }
-
-    if (!btnEliminar && config.editable) {
-      btnEliminar = document.createElement('button');
-      btnEliminar.className = 'nx-login-btn nx-modal-btn-eliminar';
-      btnEliminar.style.cssText = 'padding:8px 16px;font-size:13px;background:transparent;color:#ef4444;border:1px solid rgba(239,68,68,0.3);';
-      btnEliminar.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:middle;margin-right:4px;"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg> Eliminar`;
-      btnEliminar.addEventListener('click', () => {
-        cerrarModal();
-        setTimeout(() => abrirModalConfirmarEliminar(entidad, pkValue), 150);
-      });
-      footer.insertBefore(btnEliminar, modalGuardar);
-    }
-  } catch (err) {
-    mostrarToast('Error al cargar detalle', 'error');
-    console.error(err);
-  }
-}
-
-function abrirModalConfirmarEliminar(entidad, pkValue) {
-  const config = configTablas[entidad];
-  abrirModal('Confirmar eliminación', `
-    <div style="text-align:center;padding:16px 0;">
-      <div style="width:56px;height:56px;border-radius:50%;background:rgba(239,68,68,0.1);color:#ef4444;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;">
-        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-      </div>
-      <p style="color:var(--nx-text);font-size:16px;font-weight:600;margin-bottom:4px;">¿Eliminar ${config.titulo.toLowerCase().slice(0, -1)}?</p>
-      <p style="color:var(--nx-text-dim);font-size:13px;">Esta acción no se puede deshacer.</p>
-    </div>
-  `, () => {
-    eliminarRegistro(entidad, pkValue);
-    cerrarModal();
-  });
-}
 
 // ========== INFO NEXUS ==========
 function htmlNovedades() {
