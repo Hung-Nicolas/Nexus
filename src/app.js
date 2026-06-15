@@ -3,6 +3,8 @@ import { iniciarSesion, cerrarSesion, restaurarSesion, getPerfil, onAuthChange }
 import { NEXUS_INFO } from './info-nexus.js';
 import './styles.css';
 
+console.log('%c Nexus conectado ', 'background: #0ea5e9; color: #fff; padding: 4px 8px; border-radius: 4px;');
+
 // Estado
 let tablaActual = 'alumnos';
 let seccionActual = 'buscador';
@@ -60,8 +62,6 @@ const sidebarLinks = document.querySelectorAll('.nx-sidebar-link');
 const sectionBuscador = document.getElementById('sectionBuscador');
 const sectionDashboard = document.getElementById('sectionDashboard');
 const sectionInfo = document.getElementById('sectionInfo');
-const sectionProyectos = document.getElementById('sectionProyectos');
-const proyectosList = document.getElementById('proyectosList');
 const infoSubtitle = document.getElementById('infoSubtitle');
 const infoVersionNovedades = document.getElementById('infoVersionNovedades');
 const infoNovedades = document.getElementById('infoNovedades');
@@ -243,13 +243,11 @@ loginForm.addEventListener('submit', async (e) => {
   e.preventDefault();
   const email = document.getElementById('loginEmail').value.trim();
   const password = document.getElementById('loginPassword').value;
-  console.log('[Nexus Debug] Form submit → email:', email);
   loginBtnText.textContent = 'Ingresando...';
   loginError.classList.remove('show');
 
   try {
     const perfil = await iniciarSesion(email, password);
-    console.log('[Nexus Debug] iniciarSesion retornó perfil:', perfil);
   } catch (err) {
     console.error('[Nexus] Login error:', err);
 
@@ -326,7 +324,6 @@ btnConfirmarLogout?.addEventListener('click', async () => {
 
 // Auth state
 onAuthChange((estado, perfil) => {
-  console.log('[Nexus Debug] onAuthChange callback → estado:', estado, '| perfil:', perfil ? (perfil.email || 'sin email') : null);
   if (estado === 'signed_in' && perfil) {
     showApp();
     updateUserUI(perfil);
@@ -344,30 +341,21 @@ function mostrarSeccion(seccion) {
     sectionDashboard.classList.remove('hidden');
     sectionBuscador.classList.add('hidden');
     sectionInfo.classList.add('hidden');
-    sectionProyectos.classList.add('hidden');
     mainFilters.style.display = 'none';
     cargarDashboard();
   } else if (seccion === 'buscador') {
     sectionDashboard.classList.add('hidden');
     sectionBuscador.classList.remove('hidden');
     sectionInfo.classList.add('hidden');
-    sectionProyectos.classList.add('hidden');
     mainFilters.style.display = '';
   } else if (seccion === 'info') {
     sectionDashboard.classList.add('hidden');
     sectionBuscador.classList.add('hidden');
     sectionInfo.classList.remove('hidden');
-    sectionProyectos.classList.add('hidden');
     mainFilters.style.display = 'none';
     renderizarInfoNexus();
-  } else if (seccion === 'proyectos') {
-    sectionDashboard.classList.add('hidden');
-    sectionBuscador.classList.add('hidden');
-    sectionInfo.classList.add('hidden');
-    sectionProyectos.classList.remove('hidden');
-    mainFilters.style.display = 'none';
-    cargarProyectos();
   }
+
   sidebarLinks.forEach(link => {
     const esActivo = link.dataset.table === seccion || link.dataset.section === seccion;
     link.classList.toggle('active', esActivo);
@@ -401,7 +389,6 @@ async function cargarDashboard() {
       responsables,
       roles,
       domicilios,
-      proyectos,
     ] = await Promise.all([
       supabase.from('alumnos').select('dni', { count: 'exact', head: true }),
       supabase.from('personal').select('dni', { count: 'exact', head: true }),
@@ -410,7 +397,6 @@ async function cargarDashboard() {
       supabase.from('responsables').select('id', { count: 'exact', head: true }),
       supabase.from('roles').select('id_rol', { count: 'exact', head: true }),
       supabase.from('domicilios').select('id_domicilio', { count: 'exact', head: true }),
-      supabase.from('proyectos').select('id', { count: 'exact', head: true }),
     ]);
 
     // Stats
@@ -422,7 +408,7 @@ async function cargarDashboard() {
       { label: 'Responsables', value: responsables.count || 0, icon: iconoResponsables },
       { label: 'Roles', value: roles.count || 0, icon: iconoRoles },
       { label: 'Domicilios', value: domicilios.count || 0, icon: iconoDomicilios },
-      { label: 'Proyectos', value: proyectos.count || 0, icon: iconoProyectos },
+      { label: 'Proyectos', value: 1, icon: iconoProyectos },
     ];
 
     dashboardStatsGrid.innerHTML = stats.map(s => `
@@ -436,77 +422,6 @@ async function cargarDashboard() {
 
   } catch (err) {
     console.error('[Nexus] Error dashboard:', err);
-  }
-}
-
-// ========== PROYECTOS ==========
-async function cargarProyectos() {
-  try {
-    const { data: proyectos, error } = await supabase
-      .from('proyectos')
-      .select('id, nombre, slug, api_key, permisos, activo, descripcion, created_at')
-      .order('created_at', { ascending: true });
-
-    if (error) throw error;
-
-    if (!proyectos || proyectos.length === 0) {
-      proyectosList.innerHTML = '<div class="nx-info-card"><div class="nx-dashboard-empty">No hay proyectos conectados.</div></div>';
-      return;
-    }
-
-    const externos = {
-      gie: { url: 'https://hung-nicolas.github.io/GIE/', label: 'Abrir GIE' },
-    };
-
-    proyectosList.innerHTML = proyectos.map(p => {
-      const externo = externos[p.slug];
-      const permisos = Array.isArray(p.permisos)
-        ? p.permisos
-        : (typeof p.permisos === 'string' ? JSON.parse(p.permisos) : Object.values(p.permisos || {}));
-      const keyVisible = p.api_key ? `${p.api_key.slice(0, 8)}...${p.api_key.slice(-4)}` : '—';
-      const fecha = p.created_at ? new Date(p.created_at).toLocaleDateString('es-AR') : '—';
-
-      return `
-        <div class="nx-info-card">
-          <div class="nx-proyecto-header">
-            <h3 class="nx-info-card-title">${escapeHtml(p.nombre)}</h3>
-            <span class="nx-badge ${p.activo ? 'nx-badge-ok' : 'nx-badge-off'}">${p.activo ? 'Activo' : 'Inactivo'}</span>
-          </div>
-          <div class="nx-info-card-body">
-            ${p.descripcion ? `<p class="nx-proyecto-desc">${escapeHtml(p.descripcion)}</p>` : ''}
-            <div class="nx-proyecto-meta">
-              <span><strong>Slug:</strong> ${escapeHtml(p.slug)}</span>
-              <span><strong>Creado:</strong> ${fecha}</span>
-            </div>
-            <div class="nx-proyecto-meta">
-              <span><strong>API key:</strong> <code class="nx-code">${escapeHtml(keyVisible)}</code></span>
-              <button class="nx-btn-copy" data-key="${escapeHtml(p.api_key || '')}">Copiar</button>
-            </div>
-            <div class="nx-proyecto-permisos">
-              <strong>Permisos:</strong>
-              ${permisos.length ? permisos.map(t => `<span class="nx-tag">${escapeHtml(t)}</span>`).join('') : '<span class="nx-tag nx-tag-muted">Sin permisos</span>'}
-            </div>
-            ${externo ? `<a href="${externo.url}" target="_blank" rel="noopener noreferrer" class="nx-proyecto-link">${externo.label} →</a>` : ''}
-          </div>
-        </div>
-      `;
-    }).join('');
-
-    proyectosList.querySelectorAll('.nx-btn-copy').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        try {
-          await navigator.clipboard.writeText(btn.dataset.key);
-          const original = btn.textContent;
-          btn.textContent = 'Copiado';
-          setTimeout(() => btn.textContent = original, 1500);
-        } catch (err) {
-          console.error('[Nexus] Error al copiar:', err);
-        }
-      });
-    });
-  } catch (err) {
-    console.error('[Nexus] Error proyectos:', err);
-    proyectosList.innerHTML = '<div class="nx-info-card"><div class="nx-dashboard-empty">No se pudieron cargar los proyectos.</div></div>';
   }
 }
 

@@ -1602,20 +1602,50 @@ a.nx-sidebar-link {
 }
 
 /* ========== PROYECTOS ========== */
+.nx-proyecto-toggle {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 0 0 14px;
+  margin: 0 0 14px;
+  border: none;
+  border-bottom: 1px solid var(--nx-border);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  transition: var(--nx-transition);
+}
+
+.nx-proyecto-toggle:hover {
+  border-color: var(--nx-border-hover);
+}
+
 .nx-proyecto-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 12px;
-  margin-bottom: 14px;
-  padding-bottom: 14px;
-  border-bottom: 1px solid var(--nx-border);
+  flex: 1;
 }
 
 .nx-proyecto-header .nx-info-card-title {
   margin: 0;
   padding: 0;
   border: none;
+}
+
+.nx-proyecto-chevron {
+  flex-shrink: 0;
+  color: var(--nx-text-dim);
+  transition: transform 0.2s ease;
+}
+
+.nx-proyecto-toggle[aria-expanded="true"] .nx-proyecto-chevron {
+  transform: rotate(180deg);
 }
 
 .nx-proyecto-desc {
