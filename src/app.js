@@ -14,6 +14,17 @@ let abortControllerBusqueda = null;
 const cacheResultados = new Map(); // clave: "tabla|termino|filtrosJSON" → { data, timestamp }
 const CACHE_TTL_MS = 30000; // 30 segundos de cache
 
+// Iconos SVG del dashboard (estilo Lucide)
+const iconoBase = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">';
+const iconoAlumnos = `${iconoBase}<path d="M22 10l-10-5-10 5 10 5 10-5z"/><path d="M6 12v5c0 1.7 2.7 3 6 3s6-1.3 6-3v-5"/></svg>`;
+const iconoPersonal = `${iconoBase}<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`;
+const iconoCursos = `${iconoBase}<path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>`;
+const iconoMaterias = `${iconoBase}<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>`;
+const iconoResponsables = `${iconoBase}<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>`;
+const iconoRoles = `${iconoBase}<path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>`;
+const iconoDomicilios = `${iconoBase}<path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>`;
+const iconoProyectos = `${iconoBase}<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>`;
+
 // Referencias DOM
 const loginScreen = document.getElementById('loginScreen');
 const appContainer = document.getElementById('appContainer');
@@ -49,13 +60,15 @@ const sidebarLinks = document.querySelectorAll('.nx-sidebar-link');
 const sectionBuscador = document.getElementById('sectionBuscador');
 const sectionDashboard = document.getElementById('sectionDashboard');
 const sectionInfo = document.getElementById('sectionInfo');
+const sectionProyectos = document.getElementById('sectionProyectos');
+const proyectosList = document.getElementById('proyectosList');
 const infoSubtitle = document.getElementById('infoSubtitle');
 const infoVersionNovedades = document.getElementById('infoVersionNovedades');
 const infoNovedades = document.getElementById('infoNovedades');
 const infoAcerca = document.getElementById('infoAcerca');
 const loginInfoVersionNovedades = document.getElementById('loginInfoVersionNovedades');
 const dashboardStatsGrid = document.getElementById('dashboardStatsGrid');
-const dashboardUltimosAlumnos = document.getElementById('dashboardUltimosAlumnos');
+
 
 // Modal CRUD
 
@@ -65,20 +78,16 @@ const dashboardUltimosAlumnos = document.getElementById('dashboardUltimosAlumnos
 const configTablas = {
   alumnos: {
     titulo: 'Alumnos',
-    campos: 'id, dni, nombre, apellido, email, especialidad, division, turno, email_padre, telefono, fecha_nacimiento, genero, nacionalidad, id_domicilio, id_curso',
+    campos: 'id, dni, nombre, apellido, email, email_padre, telefono, fecha_nacimiento, genero, nacionalidad, id_domicilio, id_curso',
     orden: { column: 'apellido', ascending: true },
     buscarEn: ['nombre', 'apellido', 'email'],
-    filtros: [
-      { key: 'turno', label: 'Turno', tipo: 'select', opciones: ['Mañana', 'Tarde', 'Noche'] },
-      { key: 'especialidad', label: 'Especialidad', tipo: 'select', opciones: [] },
-      { key: 'division', label: 'División', tipo: 'select', opciones: [] },
-    ],
+    filtros: [],
     pk: 'id',
     render: (row) => ({
       avatar: `${row.nombre?.[0] || ''}${row.apellido?.[0] || ''}`,
       titulo: `${row.apellido}, ${row.nombre}`,
-      meta: [row.dni ? `DNI ${row.dni}` : null, row.division, row.turno].filter(Boolean),
-      tags: [row.especialidad ? { text: row.especialidad, style: 'default' } : null].filter(Boolean),
+      meta: [row.dni ? `DNI ${row.dni}` : null].filter(Boolean),
+      tags: [],
     }),
   },
   responsables: {
@@ -118,7 +127,7 @@ const configTablas = {
     buscarEn: ['division', 'turno', 'especialidad'],
     filtros: [
       { key: 'turno', label: 'Turno', tipo: 'select', opciones: ['Mañana', 'Tarde', 'Noche'] },
-      { key: 'especialidad', label: 'Especialidad', tipo: 'select', opciones: [] },
+      { key: 'especialidad', label: 'Especialidad', tipo: 'select', opciones: ['Computación', 'Automotores'] },
       { key: 'anio', label: 'Año', tipo: 'select', opciones: [] },
     ],
     pk: 'id_curso',
@@ -335,19 +344,29 @@ function mostrarSeccion(seccion) {
     sectionDashboard.classList.remove('hidden');
     sectionBuscador.classList.add('hidden');
     sectionInfo.classList.add('hidden');
+    sectionProyectos.classList.add('hidden');
     mainFilters.style.display = 'none';
     cargarDashboard();
   } else if (seccion === 'buscador') {
     sectionDashboard.classList.add('hidden');
     sectionBuscador.classList.remove('hidden');
     sectionInfo.classList.add('hidden');
+    sectionProyectos.classList.add('hidden');
     mainFilters.style.display = '';
   } else if (seccion === 'info') {
     sectionDashboard.classList.add('hidden');
     sectionBuscador.classList.add('hidden');
     sectionInfo.classList.remove('hidden');
+    sectionProyectos.classList.add('hidden');
     mainFilters.style.display = 'none';
     renderizarInfoNexus();
+  } else if (seccion === 'proyectos') {
+    sectionDashboard.classList.add('hidden');
+    sectionBuscador.classList.add('hidden');
+    sectionInfo.classList.add('hidden');
+    sectionProyectos.classList.remove('hidden');
+    mainFilters.style.display = 'none';
+    cargarProyectos();
   }
   sidebarLinks.forEach(link => {
     const esActivo = link.dataset.table === seccion || link.dataset.section === seccion;
@@ -380,27 +399,30 @@ async function cargarDashboard() {
       cursos,
       materias,
       responsables,
+      roles,
+      domicilios,
+      proyectos,
     ] = await Promise.all([
       supabase.from('alumnos').select('dni', { count: 'exact', head: true }),
       supabase.from('personal').select('dni', { count: 'exact', head: true }),
       supabase.from('cursos').select('id_curso', { count: 'exact', head: true }),
       supabase.from('materias').select('id_materia', { count: 'exact', head: true }),
       supabase.from('responsables').select('id', { count: 'exact', head: true }),
+      supabase.from('roles').select('id_rol', { count: 'exact', head: true }),
+      supabase.from('domicilios').select('id_domicilio', { count: 'exact', head: true }),
+      supabase.from('proyectos').select('id', { count: 'exact', head: true }),
     ]);
-
-    const { data: ultimosAlumnos } = await supabase
-      .from('alumnos')
-      .select('dni, nombre, apellido, division, turno')
-      .order('created_at', { ascending: false })
-      .limit(5);
 
     // Stats
     const stats = [
-      { label: 'Alumnos', value: alumnos.count || 0, icon: '👨‍🎓' },
-      { label: 'Personal', value: personal.count || 0, icon: '👩‍🏫' },
-      { label: 'Cursos', value: cursos.count || 0, icon: '📚' },
-      { label: 'Materias', value: materias.count || 0, icon: '📖' },
-      { label: 'Responsables', value: responsables.count || 0, icon: '👨‍👩‍👧' },
+      { label: 'Alumnos', value: alumnos.count || 0, icon: iconoAlumnos },
+      { label: 'Personal', value: personal.count || 0, icon: iconoPersonal },
+      { label: 'Cursos', value: cursos.count || 0, icon: iconoCursos },
+      { label: 'Materias', value: materias.count || 0, icon: iconoMaterias },
+      { label: 'Responsables', value: responsables.count || 0, icon: iconoResponsables },
+      { label: 'Roles', value: roles.count || 0, icon: iconoRoles },
+      { label: 'Domicilios', value: domicilios.count || 0, icon: iconoDomicilios },
+      { label: 'Proyectos', value: proyectos.count || 0, icon: iconoProyectos },
     ];
 
     dashboardStatsGrid.innerHTML = stats.map(s => `
@@ -411,30 +433,86 @@ async function cargarDashboard() {
       </div>
     `).join('');
 
-    // Últimos alumnos
-    const alumnosRows = (ultimosAlumnos || []).map(a => `
-      <div class="nx-dashboard-item">
-        <div class="nx-dashboard-item-main">
-          <span class="nx-dashboard-item-title">${escapeHtml(a.apellido)}, ${escapeHtml(a.nombre)}</span>
-          <span class="nx-dashboard-item-meta">DNI ${a.dni} · ${a.division || ''} · ${a.turno || ''}</span>
-        </div>
-      </div>
-    `).join('');
-    dashboardUltimosAlumnos.innerHTML = alumnosRows || '<div class="nx-dashboard-empty">No hay alumnos</div>';
+
   } catch (err) {
     console.error('[Nexus] Error dashboard:', err);
+  }
+}
+
+// ========== PROYECTOS ==========
+async function cargarProyectos() {
+  try {
+    const { data: proyectos, error } = await supabase
+      .from('proyectos')
+      .select('id, nombre, slug, api_key, permisos, activo, descripcion, created_at')
+      .order('created_at', { ascending: true });
+
+    if (error) throw error;
+
+    if (!proyectos || proyectos.length === 0) {
+      proyectosList.innerHTML = '<div class="nx-info-card"><div class="nx-dashboard-empty">No hay proyectos conectados.</div></div>';
+      return;
+    }
+
+    const externos = {
+      gie: { url: 'https://hung-nicolas.github.io/GIE/', label: 'Abrir GIE' },
+    };
+
+    proyectosList.innerHTML = proyectos.map(p => {
+      const externo = externos[p.slug];
+      const permisos = Array.isArray(p.permisos)
+        ? p.permisos
+        : (typeof p.permisos === 'string' ? JSON.parse(p.permisos) : Object.values(p.permisos || {}));
+      const keyVisible = p.api_key ? `${p.api_key.slice(0, 8)}...${p.api_key.slice(-4)}` : '—';
+      const fecha = p.created_at ? new Date(p.created_at).toLocaleDateString('es-AR') : '—';
+
+      return `
+        <div class="nx-info-card">
+          <div class="nx-proyecto-header">
+            <h3 class="nx-info-card-title">${escapeHtml(p.nombre)}</h3>
+            <span class="nx-badge ${p.activo ? 'nx-badge-ok' : 'nx-badge-off'}">${p.activo ? 'Activo' : 'Inactivo'}</span>
+          </div>
+          <div class="nx-info-card-body">
+            ${p.descripcion ? `<p class="nx-proyecto-desc">${escapeHtml(p.descripcion)}</p>` : ''}
+            <div class="nx-proyecto-meta">
+              <span><strong>Slug:</strong> ${escapeHtml(p.slug)}</span>
+              <span><strong>Creado:</strong> ${fecha}</span>
+            </div>
+            <div class="nx-proyecto-meta">
+              <span><strong>API key:</strong> <code class="nx-code">${escapeHtml(keyVisible)}</code></span>
+              <button class="nx-btn-copy" data-key="${escapeHtml(p.api_key || '')}">Copiar</button>
+            </div>
+            <div class="nx-proyecto-permisos">
+              <strong>Permisos:</strong>
+              ${permisos.length ? permisos.map(t => `<span class="nx-tag">${escapeHtml(t)}</span>`).join('') : '<span class="nx-tag nx-tag-muted">Sin permisos</span>'}
+            </div>
+            ${externo ? `<a href="${externo.url}" target="_blank" rel="noopener noreferrer" class="nx-proyecto-link">${externo.label} →</a>` : ''}
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    proyectosList.querySelectorAll('.nx-btn-copy').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(btn.dataset.key);
+          const original = btn.textContent;
+          btn.textContent = 'Copiado';
+          setTimeout(() => btn.textContent = original, 1500);
+        } catch (err) {
+          console.error('[Nexus] Error al copiar:', err);
+        }
+      });
+    });
+  } catch (err) {
+    console.error('[Nexus] Error proyectos:', err);
+    proyectosList.innerHTML = '<div class="nx-info-card"><div class="nx-dashboard-empty">No se pudieron cargar los proyectos.</div></div>';
   }
 }
 
 // ========== FILTROS ==========
 async function cargarOpcionesFiltros() {
   try {
-    const { data: espAlumnos } = await supabase.from('alumnos').select('especialidad').not('especialidad', 'is', null);
-    opcionesFiltros['alumnos.especialidad'] = [...new Set((espAlumnos || []).map(a => a.especialidad).filter(Boolean))].sort();
-
-    const { data: divAlumnos } = await supabase.from('alumnos').select('division').not('division', 'is', null);
-    opcionesFiltros['alumnos.division'] = [...new Set((divAlumnos || []).map(a => a.division).filter(Boolean))].sort();
-
     const { data: espCursos } = await supabase.from('cursos').select('especialidad').not('especialidad', 'is', null);
     opcionesFiltros['cursos.especialidad'] = [...new Set((espCursos || []).map(c => c.especialidad).filter(Boolean))].sort();
 

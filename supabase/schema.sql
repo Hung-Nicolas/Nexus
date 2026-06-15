@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS public.cursos (
     anio INTEGER NOT NULL CHECK (anio > 0),
     division TEXT NOT NULL,
     turno TEXT NOT NULL CHECK (turno IN ('Mañana', 'Tarde', 'Noche')),
-    especialidad TEXT,
+    especialidad TEXT CHECK (especialidad IS NULL OR especialidad IN ('Computación', 'Automotores')),
     created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now())
 );
 
@@ -31,9 +31,6 @@ CREATE TABLE IF NOT EXISTS public.alumnos (
     nombre TEXT NOT NULL,
     apellido TEXT NOT NULL,
     email TEXT,
-    especialidad TEXT,
-    division TEXT NOT NULL,
-    turno TEXT NOT NULL DEFAULT 'Mañana' CHECK (turno IN ('Mañana', 'Tarde', 'Noche')),
     email_padre TEXT,
     telefono TEXT,
     fecha_nacimiento DATE,

@@ -133,6 +133,12 @@
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
               Acerca de
             </button>
+
+            <div class="nx-sidebar-label">Proyectos</div>
+            <button class="nx-sidebar-link" data-section="proyectos">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+              GIE
+            </button>
           </nav>
 
           <!-- Filtros dinámicos (solo para tablas) -->
@@ -177,19 +183,7 @@
               </div>
             </section>
 
-            <section class="nx-dashboard-detail" id="dashboardDetail">
-              <div class="nx-dashboard-grid">
-                <div class="nx-dashboard-card">
-                  <h3 class="nx-dashboard-card-title">Últimos alumnos</h3>
-                  <div id="dashboardUltimosAlumnos" class="nx-dashboard-list">
-                    <div class="nx-dashboard-skeleton"></div>
-                    <div class="nx-dashboard-skeleton"></div>
-                    <div class="nx-dashboard-skeleton"></div>
-                  </div>
-                </div>
 
-              </div>
-            </section>
           </div>
 
           <!-- SECCION: Buscador -->
@@ -252,6 +246,24 @@
                     Acerca de
                   </h3>
                   <div id="infoAcerca" class="nx-info-card-body"></div>
+                </div>
+              </div>
+            </section>
+          </div>
+
+          <!-- SECCION: Proyectos -->
+          <div id="sectionProyectos" class="hidden">
+            <section class="nx-hero" style="padding-bottom: 24px;">
+              <div class="nx-hero-content">
+                <h1 class="nx-hero-title">Proyectos conectados</h1>
+                <p class="nx-hero-subtitle">Sistemas externos autorizados para consumir datos vía API Gateway.</p>
+              </div>
+            </section>
+
+            <section class="nx-info-page">
+              <div class="nx-info-stack" id="proyectosList">
+                <div class="nx-info-card">
+                  <div class="nx-dashboard-skeleton" style="height: 80px;"></div>
                 </div>
               </div>
             </section>

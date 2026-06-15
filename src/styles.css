@@ -493,6 +493,10 @@ body {
   flex-shrink: 0;
 }
 
+a.nx-sidebar-link {
+  text-decoration: none;
+}
+
 /* Sidebar filters */
 .nx-sidebar-filters {
   padding: 0 14px 16px;
@@ -825,9 +829,16 @@ body {
 }
 
 .nx-stat-icon {
-  font-size: 22px;
-  margin-bottom: 6px;
-  line-height: 1;
+  width: 26px;
+  height: 26px;
+  margin-bottom: 8px;
+  color: var(--nx-text-muted);
+}
+
+.nx-stat-icon svg {
+  width: 100%;
+  height: 100%;
+  display: block;
 }
 
 .nx-stat-label {
@@ -1588,4 +1599,125 @@ body {
   .nx-info-card {
     padding: 18px;
   }
+}
+
+/* ========== PROYECTOS ========== */
+.nx-proyecto-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--nx-border);
+}
+
+.nx-proyecto-header .nx-info-card-title {
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+.nx-proyecto-desc {
+  margin: 0 0 14px;
+  color: var(--nx-text-muted);
+}
+
+.nx-proyecto-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 12px;
+  font-size: 13px;
+  color: var(--nx-text-dim);
+}
+
+.nx-proyecto-permisos {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  font-size: 13px;
+  color: var(--nx-text-dim);
+}
+
+.nx-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.nx-badge-ok {
+  background: rgba(34, 197, 94, 0.12);
+  color: #4ade80;
+}
+
+.nx-badge-off {
+  background: rgba(148, 163, 184, 0.12);
+  color: var(--nx-text-muted);
+}
+
+.nx-code {
+  display: inline-block;
+  background: rgba(148, 163, 184, 0.1);
+  color: var(--nx-text-muted);
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+}
+
+.nx-btn-copy {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border: 1px solid var(--nx-border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--nx-text-muted);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: var(--nx-transition);
+}
+
+.nx-btn-copy:hover {
+  border-color: var(--nx-accent-blue);
+  color: var(--nx-text);
+}
+
+.nx-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 6px;
+  background: var(--nx-gradient-subtle);
+  color: var(--nx-text);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.nx-tag-muted {
+  background: rgba(148, 163, 184, 0.08);
+  color: var(--nx-text-dim);
+}
+
+.nx-proyecto-link {
+  display: inline-flex;
+  margin-top: 14px;
+  color: var(--nx-accent-blue);
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+  transition: var(--nx-transition);
+}
+
+.nx-proyecto-link:hover {
+  color: var(--nx-accent-cyan);
 }
