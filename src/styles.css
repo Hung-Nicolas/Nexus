@@ -1751,3 +1751,129 @@ a.nx-sidebar-link {
 .nx-proyecto-link:hover {
   color: var(--nx-accent-cyan);
 }
+
+/* ========== MODAL DETALLE DE REGISTRO ========== */
+
+.nx-modal-card-detalle {
+  max-width: 620px;
+}
+
+.nx-modal-body-detalle {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: 24px;
+}
+
+.nx-detalle-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--nx-border);
+}
+
+.nx-detalle-avatar {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  font-weight: 600;
+  color: #fff;
+  background: var(--nx-gradient);
+  flex-shrink: 0;
+}
+
+.nx-detalle-meta {
+  flex: 1;
+  min-width: 0;
+}
+
+.nx-detalle-titulo {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--nx-text);
+  margin-bottom: 4px;
+}
+
+.nx-detalle-subtitulo {
+  font-size: 13px;
+  color: var(--nx-text-muted);
+}
+
+.nx-detalle-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+
+@media (max-width: 540px) {
+  .nx-detalle-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.nx-detalle-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px;
+  background: var(--nx-bg-elevated);
+  border: 1px solid var(--nx-border);
+  border-radius: var(--nx-radius-xs);
+}
+
+.nx-detalle-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--nx-text-dim);
+}
+
+.nx-detalle-value {
+  font-size: 14px;
+  color: var(--nx-text);
+  word-break: break-word;
+}
+
+.nx-detalle-vacio {
+  color: var(--nx-text-dim);
+  font-style: italic;
+}
+
+.nx-detalle-link {
+  color: var(--nx-accent-blue);
+  text-decoration: none;
+  transition: var(--nx-transition);
+}
+
+.nx-detalle-link:hover {
+  color: var(--nx-accent-cyan);
+  text-decoration: underline;
+}
+
+.nx-detalle-fk-link {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 8px;
+  padding: 2px 8px;
+  background: var(--nx-gradient-subtle);
+  border: 1px solid rgba(14, 165, 233, 0.2);
+  border-radius: 6px;
+  color: var(--nx-accent-cyan);
+  font-size: 11px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: var(--nx-transition);
+}
+
+.nx-detalle-fk-link:hover {
+  background: rgba(14, 165, 233, 0.15);
+  border-color: rgba(14, 165, 233, 0.35);
+  color: var(--nx-text);
+}

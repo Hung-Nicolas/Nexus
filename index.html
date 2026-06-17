@@ -280,5 +280,24 @@
     </div>
   </div>
 
+  <!-- Modal Detalle de Registro -->
+  <div id="modalDetalle" class="nx-modal hidden" style="z-index: 250;">
+    <div class="nx-modal-backdrop" id="modalDetalleBackdrop"></div>
+    <div class="nx-modal-card nx-modal-card-detalle">
+      <div class="nx-modal-header">
+        <h3 id="modalDetalleTitle">Detalle</h3>
+        <button id="modalDetalleClose" class="nx-modal-close" aria-label="Cerrar">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+        </button>
+      </div>
+      <div class="nx-modal-body nx-modal-body-detalle" id="modalDetalleBody">
+        <!-- Contenido dinámico -->
+      </div>
+      <div class="nx-modal-footer" style="justify-content: center;">
+        <button id="modalDetalleCerrar" class="nx-login-btn nx-login-btn-outline" style="padding: 8px 20px; font-size: 13px;">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
   </body>
 </html>

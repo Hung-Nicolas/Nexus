@@ -69,6 +69,14 @@ const infoAcerca = document.getElementById('infoAcerca');
 const loginInfoVersionNovedades = document.getElementById('loginInfoVersionNovedades');
 const dashboardStatsGrid = document.getElementById('dashboardStatsGrid');
 
+// Modal Detalle
+const modalDetalle = document.getElementById('modalDetalle');
+const modalDetalleBackdrop = document.getElementById('modalDetalleBackdrop');
+const modalDetalleClose = document.getElementById('modalDetalleClose');
+const modalDetalleCerrar = document.getElementById('modalDetalleCerrar');
+const modalDetalleTitle = document.getElementById('modalDetalleTitle');
+const modalDetalleBody = document.getElementById('modalDetalleBody');
+
 
 // Modal CRUD
 
@@ -89,6 +97,20 @@ const configTablas = {
       meta: [row.dni ? `DNI ${row.dni}` : null].filter(Boolean),
       tags: [],
     }),
+    relaciones: {
+      id_curso: {
+        tabla: 'cursos',
+        pk: 'id_curso',
+        campos: 'anio, division, turno, especialidad',
+        render: (r) => r ? `${r.anio || ''}° ${r.division || ''} · ${r.turno || ''}` : null,
+      },
+      id_domicilio: {
+        tabla: 'domicilios',
+        pk: 'id_domicilio',
+        campos: 'calle, numero, departamento, localidad',
+        render: (r) => r ? `${r.calle || ''} ${r.numero || ''}${r.departamento ? ' Dpto. ' + r.departamento : ''}` : null,
+      },
+    },
   },
   responsables: {
     titulo: 'Responsables',
@@ -105,6 +127,20 @@ const configTablas = {
       meta: [row.vinculo ? capitalizar(row.vinculo) : null, row.telefono].filter(Boolean),
       tags: [row.email ? { text: row.email, style: 'default' } : null].filter(Boolean),
     }),
+    relaciones: {
+      id_alumno: {
+        tabla: 'alumnos',
+        pk: 'id',
+        campos: 'nombre, apellido, dni',
+        render: (r) => r ? `${r.apellido || ''}, ${r.nombre || ''}` : null,
+      },
+      id_domicilio: {
+        tabla: 'domicilios',
+        pk: 'id_domicilio',
+        campos: 'calle, numero, departamento, localidad',
+        render: (r) => r ? `${r.calle || ''} ${r.numero || ''}${r.departamento ? ' Dpto. ' + r.departamento : ''}` : null,
+      },
+    },
   },
   personal: {
     titulo: 'Personal',
@@ -119,6 +155,14 @@ const configTablas = {
       meta: [row.email].filter(Boolean),
       tags: [],
     }),
+    relaciones: {
+      id_domicilio: {
+        tabla: 'domicilios',
+        pk: 'id_domicilio',
+        campos: 'calle, numero, departamento, localidad',
+        render: (r) => r ? `${r.calle || ''} ${r.numero || ''}${r.departamento ? ' Dpto. ' + r.departamento : ''}` : null,
+      },
+    },
   },
   cursos: {
     titulo: 'Cursos',
@@ -195,6 +239,34 @@ function escapeHtml(text) {
   const div = document.createElement('div');
   div.textContent = String(text);
   return div.innerHTML;
+}
+
+function formatearCampoDetalle(key, value) {
+  if (value === null || value === undefined || value === '') return `<span class="nx-detalle-vacio">—</span>`;
+
+  // Fechas
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    const [anio, mes, dia] = value.split('-');
+    return `${dia}/${mes}/${anio}`;
+  }
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(value)) {
+    const fecha = new Date(value);
+    if (!isNaN(fecha.getTime())) {
+      return fecha.toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' });
+    }
+  }
+
+  // Emails
+  if (typeof value === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+    return `<a href="mailto:${escapeHtml(value)}" class="nx-detalle-link">${escapeHtml(value)}</a>`;
+  }
+
+  // Teléfonos
+  if (typeof value === 'string' && /^[\d\s\+\-\(\)]{6,}$/.test(value)) {
+    return `<a href="tel:${escapeHtml(value.replace(/\s/g, ''))}" class="nx-detalle-link">${escapeHtml(value)}</a>`;
+  }
+
+  return escapeHtml(value);
 }
 
 function mostrarToast(mensaje, tipo = 'success') {
@@ -552,6 +624,130 @@ function limpiarCacheTabla(tabla) {
   }
 }
 
+function construirSelectConRelaciones(tabla) {
+  const config = configTablas[tabla];
+  if (!config.relaciones) return config.campos;
+
+  const joins = new Set();
+  Object.values(config.relaciones).forEach(rel => {
+    joins.add(`${rel.tabla}(${rel.campos})`);
+  });
+
+  return `${config.campos}, ${[...joins].join(', ')}`;
+}
+
+// ========== MODAL DETALLE ==========
+function abrirModalDetalle(row, tablaForzada = null) {
+  const config = configTablas[tablaForzada || tablaActual];
+  const rendered = config.render(row);
+
+  modalDetalleTitle.textContent = rendered.titulo || 'Detalle';
+
+  const tablasRelacionadas = new Set(
+    Object.values(config.relaciones || {}).map(rel => rel.tabla)
+  );
+
+  const camposOrdenados = Object.entries(row)
+    .filter(([key]) => key !== 'id' && !key.startsWith('id_') && !tablasRelacionadas.has(key));
+
+  // Campos de FK al final, para no mezclar
+  const camposFk = Object.entries(row)
+    .filter(([key]) => key.startsWith('id_') && key !== 'id');
+
+  const renderCampo = ([key, value]) => {
+    const label = capitalizar(key.replace(/_/g, ' '));
+    const relacion = config.relaciones?.[key];
+
+    if (relacion && value != null && value !== '') {
+      // Supabase devuelve el objeto relacionado bajo el nombre de la tabla
+      const relacionado = row[relacion.tabla];
+      const relacionadoObj = Array.isArray(relacionado) ? relacionado[0] : relacionado;
+      const textoRelacion = relacionadoObj ? relacion.render(relacionadoObj) : `ID: ${value}`;
+
+      return `
+        <div class="nx-detalle-field">
+          <span class="nx-detalle-label">${escapeHtml(label)}</span>
+          <span class="nx-detalle-value">
+            ${escapeHtml(textoRelacion || `ID: ${value}`)}
+            ${relacionadoObj ? `<button type="button" class="nx-detalle-fk-link" data-fk-tabla="${relacion.tabla}" data-fk-pk="${relacion.pk}" data-fk-id="${escapeHtml(value)}">Ver</button>` : ''}
+          </span>
+        </div>
+      `;
+    }
+
+    return `
+      <div class="nx-detalle-field">
+        <span class="nx-detalle-label">${escapeHtml(label)}</span>
+        <span class="nx-detalle-value">${formatearCampoDetalle(key, value)}</span>
+      </div>
+    `;
+  };
+
+  const camposHtml = [...camposOrdenados, ...camposFk].map(renderCampo).join('');
+
+  modalDetalleBody.innerHTML = `
+    <div class="nx-detalle-header">
+      <div class="nx-detalle-avatar">${escapeHtml(rendered.avatar)}</div>
+      <div class="nx-detalle-meta">
+        <div class="nx-detalle-titulo">${escapeHtml(rendered.titulo)}</div>
+        ${rendered.meta.length ? `<div class="nx-detalle-subtitulo">${rendered.meta.map(escapeHtml).join(' · ')}</div>` : ''}
+      </div>
+    </div>
+    <div class="nx-detalle-grid">
+      ${camposHtml}
+    </div>
+  `;
+
+  // Delegar clicks en los links de FK
+  modalDetalleBody.querySelectorAll('.nx-detalle-fk-link').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const fkTabla = btn.dataset.fkTabla;
+      const fkPk = btn.dataset.fkPk;
+      const fkId = btn.dataset.fkId;
+      await abrirDetalleDesdeFK(fkTabla, fkPk, fkId);
+    });
+  });
+
+  modalDetalle.classList.remove('hidden');
+  document.body.style.overflow = 'hidden';
+}
+
+async function abrirDetalleDesdeFK(fkTabla, fkPk, fkId) {
+  const config = configTablas[fkTabla];
+  if (!config) return;
+
+  try {
+    const { data, error } = await supabase
+      .from(fkTabla)
+      .select(construirSelectConRelaciones(fkTabla))
+      .eq(fkPk, fkId)
+      .limit(1)
+      .single();
+
+    if (error) throw error;
+    if (data) abrirModalDetalle(data, fkTabla);
+  } catch (err) {
+    console.error('[Nexus] Error al cargar FK:', err);
+    mostrarToast('No se pudo cargar el registro relacionado.', 'error');
+  }
+}
+
+function cerrarModalDetalle() {
+  modalDetalle.classList.add('hidden');
+  document.body.style.overflow = '';
+}
+
+modalDetalleClose?.addEventListener('click', cerrarModalDetalle);
+modalDetalleCerrar?.addEventListener('click', cerrarModalDetalle);
+modalDetalleBackdrop?.addEventListener('click', cerrarModalDetalle);
+
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && !modalDetalle.classList.contains('hidden')) {
+    cerrarModalDetalle();
+  }
+});
+
 function renderizarGrid(data, config) {
   resultsCount.textContent = `${data?.length || 0} resultado${data?.length !== 1 ? 's' : ''}`;
 
@@ -575,7 +771,10 @@ function renderizarGrid(data, config) {
     }).join('');
 
     const div = document.createElement('div');
-    div.className = 'nx-card';
+    div.className = 'nx-card nx-card-clickable';
+    div.setAttribute('role', 'button');
+    div.setAttribute('tabindex', '0');
+    div.setAttribute('aria-label', `Ver detalle de ${rendered.titulo}`);
     div.innerHTML = `
       <div class="nx-card-avatar">${escapeHtml(rendered.avatar)}</div>
       <div class="nx-card-body">
@@ -583,6 +782,13 @@ function renderizarGrid(data, config) {
         <div class="nx-card-meta">${meta}</div>
         ${tags ? `<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;">${tags}</div>` : ''}
       </div>`;
+    div.addEventListener('click', () => abrirModalDetalle(row));
+    div.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        abrirModalDetalle(row);
+      }
+    });
     fragment.appendChild(div);
   });
 
@@ -625,9 +831,10 @@ async function buscar(query) {
   }
 
   try {
+    const selectQuery = construirSelectConRelaciones(tablaActual);
     let supaQuery = supabase
       .from(tablaActual)
-      .select(config.campos)
+      .select(selectQuery)
       .order(config.orden.column, { ascending: config.orden.ascending })
       .limit(50);
 
