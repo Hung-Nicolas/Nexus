@@ -3,7 +3,7 @@
   <br><br>
   
   <p><strong>Base de Datos Escolar Maestra</strong></p>
-  <p>Backend centralizado en Supabase con buscador web integrado.<br>
+  <p>Base de datos escolar maestra con backend Express y buscador web integrado.<br>
   Conecta alumnos, responsables, personal, cursos y materias en un solo lugar.</p>
 </div>
 
@@ -11,7 +11,9 @@
 
 ## Qué es Nexus
 
-Nexus es la capa de datos escolar central del ecosistema. Otros proyectos —como <strong>GIE</strong> (Gestor de Informes Escolares) y desarrollos de equipos externos— se conectan a través del <strong>API Gateway</strong> de Nexus, un sistema de API keys con permisos de solo lectura por tabla que garantiza acceso controlado sin exponer credenciales de Supabase.
+Nexus es la capa de datos escolar central del ecosistema. Otros proyectos —como <strong>GIE</strong> (Gestor de Informes Escolares) y desarrollos de equipos externos— se conectan a través del <strong>API Gateway</strong> de Nexus, un sistema de API keys con permisos de solo lectura por tabla que garantiza acceso controlado sin exponer credenciales.
+
+El backend está implementado en <strong>Express</strong> y se conecta directamente a PostgreSQL usando el driver <code>pg</code>. <strong>Supabase se utiliza únicamente como base de datos</strong>; la autenticación, autorización y el gateway ahora viven en el backend propio.
 
 El proyecto incluye tanto el <strong>schema PostgreSQL</strong> (tablas, relaciones, RLS e índices) como un <strong>frontend de búsqueda de solo lectura</strong> con diseño propio, filtros por tabla y estadísticas en tiempo real. No permite crear, editar ni eliminar registros desde la interfaz web.
 
@@ -55,7 +57,7 @@ Una interfaz dark-mode inspirada en la identidad visual de Nexus permite explora
 
 ## Conexión con otros proyectos
 
-Nexus no trabaja solo. Proyectos como <strong>GIE</strong> (Gestor de Informes Escolares) consumen datos maestros a través de la Edge Function <code>api-nexus</code> usando una API key propia, sin acceder directamente a la base de datos.
+Nexus no trabaja solo. Proyectos como <strong>GIE</strong> (Gestor de Informes Escolares) consumen datos maestros a través del endpoint <code>/api/v1/gateway</code> del backend Express usando una API key propia, sin acceder directamente a la base de datos.
 
 Cada proyecto externo recibe una <strong>API key independiente</strong> con permisos declarativos por tabla (solo lectura). Esto permite que cada equipo evolucione su aplicación sin depender del schema de los demás, siempre alineados en los datos base, y sin compartir credenciales de Supabase.
 
@@ -84,7 +86,32 @@ Cada proyecto externo recibe una <strong>API key independiente</strong> con perm
 
 ## Stack
 
-Supabase · PostgreSQL · Edge Functions · Vite · JavaScript vanilla · CSS3
+Express · PostgreSQL (Supabase) · JWT · Vite · JavaScript vanilla · CSS3
+
+---
+
+## Cómo correr el proyecto
+
+1. Instalar dependencias:
+   ```bash
+   npm install
+   ```
+
+2. Copiar `.env.example` a `.env` y completar las variables:
+   - `VITE_API_URL`: URL del backend Express (`http://localhost:3000/api/v1`)
+   - `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY`: solo para conexión de BD
+
+3. Copiar `backend/.env.example` a `backend/.env` y completar:
+   - `DATABASE_URL`: connection string de PostgreSQL de Supabase
+   - `JWT_SECRET`: clave secreta para firmar tokens
+   - `CORS_ORIGIN`: URL del frontend (`http://localhost:5173`)
+
+4. Aplicar las migraciones SQL en Supabase (comenzando por `supabase/migracion_express_auth.sql`).
+
+5. Levantar frontend y backend:
+   ```bash
+   npm run dev
+   ```
 
 ---
 

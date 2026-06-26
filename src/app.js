@@ -1,5 +1,5 @@
-import { supabase } from './lib/supabase.js';
 import { iniciarSesion, cerrarSesion, restaurarSesion, getPerfil, onAuthChange } from './auth.js';
+import { apiStats, apiBuscar, apiDetalle, apiOpcionesFiltros } from './lib/api.js';
 import { NEXUS_INFO } from './info-nexus.js';
 import './styles.css';
 
@@ -12,7 +12,6 @@ let timeoutBusqueda = null;
 let filtrosActuales = {};
 let opcionesFiltros = {};
 let busquedaId = 0;
-let abortControllerBusqueda = null;
 const cacheResultados = new Map(); // clave: "tabla|termino|filtrosJSON" → { data, timestamp }
 const CACHE_TTL_MS = 30000; // 30 segundos de cache
 
@@ -332,8 +331,8 @@ loginForm.addEventListener('submit', async (e) => {
       mensaje = 'Email o contraseña incorrectos.';
     } else if (mensaje.includes('Email not confirmed')) {
       mensaje = 'Email no confirmado. Revisá tu bandeja de entrada.';
-    } else if (mensaje.includes('404') || mensaje.includes('not found') || mensaje.includes('PGRST')) {
-      mensaje = 'Error de configuración. Ejecutá migracion_auth.sql en Supabase.';
+    } else if (mensaje.includes('404') || mensaje.includes('not found')) {
+      mensaje = 'Error de configuración. Verificá que el backend esté corriendo.';
     } else if (mensaje.includes('rate limit')) {
       mensaje = 'Demasiados intentos. Esperá unos minutos.';
     }
@@ -453,34 +452,18 @@ sidebarOverlay?.addEventListener('click', closeSidebar);
 // ========== DASHBOARD ==========
 async function cargarDashboard() {
   try {
-    const [
-      alumnos,
-      personal,
-      cursos,
-      materias,
-      responsables,
-      roles,
-      domicilios,
-    ] = await Promise.all([
-      supabase.from('alumnos').select('dni', { count: 'exact', head: true }),
-      supabase.from('personal').select('dni', { count: 'exact', head: true }),
-      supabase.from('cursos').select('id_curso', { count: 'exact', head: true }),
-      supabase.from('materias').select('id_materia', { count: 'exact', head: true }),
-      supabase.from('responsables').select('id', { count: 'exact', head: true }),
-      supabase.from('roles').select('id_rol', { count: 'exact', head: true }),
-      supabase.from('domicilios').select('id_domicilio', { count: 'exact', head: true }),
-    ]);
+    const { stats: s } = await apiStats();
 
     // Stats
     const stats = [
-      { label: 'Alumnos', value: alumnos.count || 0, icon: iconoAlumnos },
-      { label: 'Personal', value: personal.count || 0, icon: iconoPersonal },
-      { label: 'Cursos', value: cursos.count || 0, icon: iconoCursos },
-      { label: 'Materias', value: materias.count || 0, icon: iconoMaterias },
-      { label: 'Responsables', value: responsables.count || 0, icon: iconoResponsables },
-      { label: 'Roles', value: roles.count || 0, icon: iconoRoles },
-      { label: 'Domicilios', value: domicilios.count || 0, icon: iconoDomicilios },
-      { label: 'Proyectos', value: 1, icon: iconoProyectos },
+      { label: 'Alumnos', value: s.alumnos || 0, icon: iconoAlumnos },
+      { label: 'Personal', value: s.personal || 0, icon: iconoPersonal },
+      { label: 'Cursos', value: s.cursos || 0, icon: iconoCursos },
+      { label: 'Materias', value: s.materias || 0, icon: iconoMaterias },
+      { label: 'Responsables', value: s.responsables || 0, icon: iconoResponsables },
+      { label: 'Roles', value: s.roles || 0, icon: iconoRoles },
+      { label: 'Domicilios', value: s.domicilios || 0, icon: iconoDomicilios },
+      { label: 'Proyectos', value: s.proyectos || 1, icon: iconoProyectos },
     ];
 
     dashboardStatsGrid.innerHTML = stats.map(s => `
@@ -500,11 +483,9 @@ async function cargarDashboard() {
 // ========== FILTROS ==========
 async function cargarOpcionesFiltros() {
   try {
-    const { data: espCursos } = await supabase.from('cursos').select('especialidad').not('especialidad', 'is', null);
-    opcionesFiltros['cursos.especialidad'] = [...new Set((espCursos || []).map(c => c.especialidad).filter(Boolean))].sort();
-
-    const { data: aniosCursos } = await supabase.from('cursos').select('anio').order('anio');
-    opcionesFiltros['cursos.anio'] = [...new Set((aniosCursos || []).map(c => c.anio).filter(Boolean))].sort((a, b) => a - b).map(String);
+    const { opciones } = await apiOpcionesFiltros('cursos');
+    opcionesFiltros['cursos.especialidad'] = opciones['cursos.especialidad'] || [];
+    opcionesFiltros['cursos.anio'] = opciones['cursos.anio'] || [];
   } catch (err) {
     console.error('[Nexus] Error filtros:', err);
   }
@@ -624,18 +605,6 @@ function limpiarCacheTabla(tabla) {
   }
 }
 
-function construirSelectConRelaciones(tabla) {
-  const config = configTablas[tabla];
-  if (!config.relaciones) return config.campos;
-
-  const joins = new Set();
-  Object.values(config.relaciones).forEach(rel => {
-    joins.add(`${rel.tabla}(${rel.campos})`);
-  });
-
-  return `${config.campos}, ${[...joins].join(', ')}`;
-}
-
 // ========== MODAL DETALLE ==========
 function abrirModalDetalle(row, tablaForzada = null) {
   const config = configTablas[tablaForzada || tablaActual];
@@ -659,7 +628,7 @@ function abrirModalDetalle(row, tablaForzada = null) {
     const relacion = config.relaciones?.[key];
 
     if (relacion && value != null && value !== '') {
-      // Supabase devuelve el objeto relacionado bajo el nombre de la tabla
+      // El backend devuelve el objeto relacionado bajo el nombre de la tabla
       const relacionado = row[relacion.tabla];
       const relacionadoObj = Array.isArray(relacionado) ? relacionado[0] : relacionado;
       const textoRelacion = relacionadoObj ? relacion.render(relacionadoObj) : `ID: ${value}`;
@@ -718,14 +687,7 @@ async function abrirDetalleDesdeFK(fkTabla, fkPk, fkId) {
   if (!config) return;
 
   try {
-    const { data, error } = await supabase
-      .from(fkTabla)
-      .select(construirSelectConRelaciones(fkTabla))
-      .eq(fkPk, fkId)
-      .limit(1)
-      .single();
-
-    if (error) throw error;
+    const { data } = await apiDetalle(fkTabla, fkPk, fkId);
     if (data) abrirModalDetalle(data, fkTabla);
   } catch (err) {
     console.error('[Nexus] Error al cargar FK:', err);
@@ -831,49 +793,20 @@ async function buscar(query) {
   }
 
   try {
-    const selectQuery = construirSelectConRelaciones(tablaActual);
-    let supaQuery = supabase
-      .from(tablaActual)
-      .select(selectQuery)
-      .order(config.orden.column, { ascending: config.orden.ascending })
-      .limit(50);
-
-    if (termino && termino.length >= 1) {
-      const esNumero = /^\d+$/.test(termino);
-      if (esNumero) {
-        const num = parseInt(termino, 10);
-        if (tablaActual === 'alumnos' || tablaActual === 'personal') {
-          supaQuery = supaQuery.or(`dni.eq.${num}`);
-        } else if (tablaActual === 'cursos') {
-          supaQuery = supaQuery.or(`anio.eq.${num}`);
-        } else if (tablaActual === 'domicilios') {
-          supaQuery = supaQuery.or(`numero.eq.${num}`);
-        }
-      }
-      if (config.buscarEn.length > 0) {
-        const terminoEscapado = termino.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
-        const filtros = config.buscarEn.map(campo => `${campo}.ilike.%${terminoEscapado}%`).join(',');
-        supaQuery = supaQuery.or(filtros);
-      }
-    }
-
-    Object.entries(filtrosActuales).forEach(([key, value]) => {
-      if (value === undefined || value === '') return;
-      supaQuery = supaQuery.eq(key, value);
+    const { data } = await apiBuscar(tablaActual, {
+      termino,
+      filtros: filtrosActuales,
+      limite: 50,
     });
 
-    const { data, error } = await supaQuery.abortSignal(abortControllerBusqueda.signal);
-
-    // Ignorar resultados de queries viejas o canceladas
+    // Ignorar resultados de queries viejas
     if (estaBusqueda !== busquedaId) return;
-    if (error) throw error;
 
     // Guardar en cache
     setCache(tablaActual, termino, filtrosKey, data);
 
     renderizarGrid(data, config);
   } catch (err) {
-    if (err.name === 'AbortError') return; // Query cancelada intencionalmente
     console.error('[Nexus] Error:', err);
     mostrarToast('Error al cargar datos.', 'error');
     resultsGrid.innerHTML = `

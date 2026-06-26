@@ -24,9 +24,10 @@ Thumbs.db
 #AGENTS
 AGENTS.md
 
-# SQL files (only schema.sql is tracked)
+# SQL files (only schema.sql and express migrations are tracked)
 supabase/*.sql
 !supabase/schema.sql
+!supabase/migracion_express_auth.sql
 
 .gitignore
 docs/*

@@ -1,8 +1,16 @@
-import { supabase } from './lib/supabase.js';
+import {
+  apiLogin,
+  apiLogout,
+  apiGetMe,
+  setAccessToken,
+  setRefreshToken,
+  clearTokens,
+  getRefreshToken,
+} from './lib/api.js';
 
 // Estado
 let _perfil = null;
-const _callbacks = [];
+let _callbacks = [];
 let _cargandoPerfil = false;
 const PERFIL_CACHE_KEY = 'nexus-perfil-cache';
 
@@ -41,23 +49,22 @@ function withTimeout(promise, ms, label) {
     promise,
     new Promise((_, reject) =>
       setTimeout(() => reject(new Error(`${label} (timeout ${ms}ms)`)), ms)
-    )
+    ),
   ]);
 }
 
-async function cargarPerfil(user) {
-  if (_cargandoPerfil) {
-    return;
-  }
+async function cargarPerfil() {
+  if (_cargandoPerfil) return;
   _cargandoPerfil = true;
+
   try {
-    const { data, error } = await withTimeout(
-      supabase.from('perfiles').select('*').eq('id', user.id).single(),
+    const { usuario } = await withTimeout(
+      apiGetMe(),
       10000,
       'cargarPerfil timeout'
     );
 
-    if (error || !data) {
+    if (!usuario) {
       _perfil = null;
       limpiarPerfilCache();
       notify('signed_out', null);
@@ -65,11 +72,11 @@ async function cargarPerfil(user) {
     }
 
     _perfil = {
-      id: data.id,
-      email: data.email,
-      nombre: data.nombre,
-      apellido: data.apellido,
-      rol: data.rol,
+      id: usuario.id,
+      email: usuario.email,
+      nombre: usuario.nombre,
+      apellido: usuario.apellido,
+      rol: usuario.rol,
     };
 
     guardarPerfilCache(_perfil);
@@ -86,15 +93,14 @@ async function cargarPerfil(user) {
 // ========== AUTH BASICO ==========
 
 export async function iniciarSesion(email, password) {
-
-  // 1. Primero verificar si ya hay sesión activa
-  const { data: { session } } = await supabase.auth.getSession();
-  if (session?.user) {
-    await cargarPerfil(session.user);
-    return _perfil;
+  // 1. Si ya hay sesión activa, intentar restaurar
+  if (getRefreshToken()) {
+    const perfil = await restaurarSesion();
+    if (perfil) return perfil;
+    // Si el refresh falló, limpiar y continuar con login
+    clearTokens();
   }
 
-  // 2. No hay sesión → llamar signInWithPassword con timeout
   let timeoutId;
   const timeoutPromise = new Promise((_, reject) => {
     timeoutId = setTimeout(() => {
@@ -102,68 +108,72 @@ export async function iniciarSesion(email, password) {
     }, 10000);
   });
 
-  const authPromise = supabase.auth.signInWithPassword({ email, password });
-
   try {
-    const result = await Promise.race([authPromise, timeoutPromise]);
+    const result = await Promise.race([apiLogin(email, password), timeoutPromise]);
     clearTimeout(timeoutId);
 
-    const { data, error } = result;
+    setAccessToken(result.accessToken);
+    setRefreshToken(result.refreshToken);
 
-    if (error) {
-      throw error;
-    }
+    _perfil = {
+      id: result.usuario.id,
+      email: result.usuario.email,
+      nombre: result.usuario.nombre,
+      apellido: result.usuario.apellido,
+      rol: result.usuario.rol,
+    };
 
-    await cargarPerfil(data.user);
+    guardarPerfilCache(_perfil);
+    notify('signed_in', _perfil);
     return _perfil;
   } catch (err) {
     clearTimeout(timeoutId);
+    clearTokens();
     throw err;
   }
 }
 
 export async function cerrarSesion() {
-  await supabase.auth.signOut();
-  _perfil = null;
-  limpiarPerfilCache();
-  notify('signed_out', null);
+  try {
+    await apiLogout();
+  } catch (err) {
+    console.error('[Nexus] Error al cerrar sesión:', err);
+  } finally {
+    _perfil = null;
+    clearTokens();
+    limpiarPerfilCache();
+    notify('signed_out', null);
+  }
 }
 
 export async function restaurarSesion() {
-  try {
-    const { data: { session } } = await withTimeout(
-      supabase.auth.getSession(),
-      8000,
-      'getSession timeout'
-    );
-
-    if (!session?.user) {
-      limpiarPerfilCache();
-      notify('signed_out', null);
-      return null;
+  const refreshToken = getRefreshToken();
+  if (!refreshToken) {
+    const cache = leerPerfilCache();
+    if (cache) {
+      // Mostrar cache mientras refrescamos silenciosamente
+      _perfil = cache;
     }
+    limpiarPerfilCache();
+    notify('signed_out', null);
+    return null;
+  }
 
-    await cargarPerfil(session.user);
-
+  try {
+    await withTimeout(
+      cargarPerfil(),
+      8000,
+      'restaurarSesion timeout'
+    );
     return _perfil;
   } catch (err) {
+    clearTokens();
     limpiarPerfilCache();
     notify('signed_out', null);
     return null;
   }
 }
 
-supabase.auth.onAuthStateChange(async (event, session) => {
-  // Solo manejar SIGNED_OUT aquí. El inicio lo maneja restaurarSesion() en app.js
-  // para evitar doble ejecución de cargarPerfil.
-  if (event === 'SIGNED_OUT') {
-    _perfil = null;
-    _cargandoPerfil = false;
-    limpiarPerfilCache();
-    notify('signed_out', null);
-  }
-});
-
 // Nota: el frontend de Nexus es de solo lectura.
 // La gestión de usuarios (crear, eliminar, cambiar contraseñas)
-// se realiza desde Supabase Dashboard, no desde la app.
+// se realiza desde el backend o directamente en la base de datos.
