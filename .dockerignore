@@ -1,0 +1,15 @@
+node_modules
+dist
+.env
+.env.*
+.git
+.vscode
+.idea
+*.md
+docs
+src
+index.html
+vite.config.js
+tailwind.config.js
+postcss.config.js
+supabase
