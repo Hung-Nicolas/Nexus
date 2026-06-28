@@ -13,9 +13,12 @@
     "db:types": "supabase gen types typescript --project-id tu-project-id --schema public > src/lib/database.types.ts"
   },
   "devDependencies": {
+    "autoprefixer": "^10.5.2",
     "concurrently": "^9.1.2",
     "nodemon": "^3.1.9",
+    "postcss": "^8.5.16",
     "supabase": "^2.98.1",
+    "tailwindcss": "^3.4.19",
     "typescript": "^5.6.0",
     "vite": "^5.4.10"
   },

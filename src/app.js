@@ -15,16 +15,15 @@ let busquedaId = 0;
 const cacheResultados = new Map(); // clave: "tabla|termino|filtrosJSON" → { data, timestamp }
 const CACHE_TTL_MS = 30000; // 30 segundos de cache
 
-// Iconos SVG del dashboard (estilo Lucide)
-const iconoBase = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">';
-const iconoAlumnos = `${iconoBase}<path d="M22 10l-10-5-10 5 10 5 10-5z"/><path d="M6 12v5c0 1.7 2.7 3 6 3s6-1.3 6-3v-5"/></svg>`;
-const iconoPersonal = `${iconoBase}<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`;
-const iconoCursos = `${iconoBase}<path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>`;
-const iconoMaterias = `${iconoBase}<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>`;
-const iconoResponsables = `${iconoBase}<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>`;
-const iconoRoles = `${iconoBase}<path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>`;
-const iconoDomicilios = `${iconoBase}<path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>`;
-const iconoProyectos = `${iconoBase}<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>`;
+// Iconos MDI del dashboard (estilo GIE)
+const iconoAlumnos = '<i class="mdi mdi-school-outline"></i>';
+const iconoPersonal = '<i class="mdi mdi-account-tie-outline"></i>';
+const iconoCursos = '<i class="mdi mdi-google-classroom"></i>';
+const iconoMaterias = '<i class="mdi mdi-book-open-variant"></i>';
+const iconoResponsables = '<i class="mdi mdi-account-supervisor-outline"></i>';
+const iconoRoles = '<i class="mdi mdi-star-outline"></i>';
+const iconoDomicilios = '<i class="mdi mdi-home-outline"></i>';
+const iconoProyectos = '<i class="mdi mdi-open-in-new"></i>';
 
 // Referencias DOM
 const loginScreen = document.getElementById('loginScreen');
@@ -275,11 +274,7 @@ function mostrarToast(mensaje, tipo = 'success') {
   const toast = document.createElement('div');
   toast.className = `nx-toast ${tipo === 'error' ? 'nx-toast-error' : ''}`;
   toast.innerHTML = `
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-      ${tipo === 'error'
-        ? '<circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>'
-        : '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>'}
-    </svg>
+    <i class="mdi ${tipo === 'error' ? 'mdi-alert-circle-outline' : 'mdi-check-circle-outline'}"></i>
     ${mensaje}
   `;
   document.body.appendChild(toast);
@@ -566,7 +561,7 @@ function renderizarFiltros() {
     const resetBtn = document.createElement('button');
     resetBtn.className = 'nx-filter-reset';
     resetBtn.type = 'button';
-    resetBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 12"/><path d="M3 3v9h9"/></svg> Limpiar filtros`;
+    resetBtn.innerHTML = `<i class="mdi mdi-refresh"></i> Limpiar filtros`;
     resetBtn.addEventListener('click', () => {
       filtrosActuales = {};
       renderizarFiltros();
@@ -716,7 +711,7 @@ function renderizarGrid(data, config) {
   if (!data || data.length === 0) {
     resultsGrid.innerHTML = `
       <div class="nx-empty">
-        <div class="nx-empty-icon"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></div>
+        <div class="nx-empty-icon"><i class="mdi mdi-magnify"></i></div>
         <p class="nx-empty-text">${searchInput.value ? `No se encontraron resultados para "${escapeHtml(searchInput.value)}"` : 'No hay registros para mostrar'}</p>
       </div>`;
     return;
@@ -780,7 +775,7 @@ async function buscar(query) {
     resultsGrid.innerHTML = `
       <div class="nx-empty">
         <div class="nx-empty-icon" style="animation: nx-pulse 1.5s infinite;">
-          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          <i class="mdi mdi-magnify"></i>
         </div>
         <p class="nx-empty-text">Cargando...</p>
       </div>`;
@@ -805,7 +800,7 @@ async function buscar(query) {
     mostrarToast('Error al cargar datos.', 'error');
     resultsGrid.innerHTML = `
       <div class="nx-empty">
-        <div class="nx-empty-icon" style="color:#ef4444"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg></div>
+        <div class="nx-empty-icon" style="color:#ef4444"><i class="mdi mdi-alert-circle-outline"></i></div>
         <p class="nx-empty-text">Error de conexión</p>
       </div>`;
   }
@@ -862,7 +857,7 @@ function htmlNovedades() {
   const ultima = NEXUS_INFO.novedades[0];
   const items = ultima.items.map(item => `
     <li class="nx-info-list-item">
-      <svg class="nx-info-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+      <i class="mdi mdi-check-circle-outline nx-info-check"></i>
       <span>${escapeHtml(item)}</span>
     </li>
   `).join('');
@@ -920,7 +915,7 @@ btnLoginInfo?.addEventListener('click', () => {
     loginInfoPanel.classList.add('hidden');
     btnLoginInfo.classList.remove('active');
     btnLoginInfo.innerHTML = `
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+      <i class="mdi mdi-information-outline"></i>
       Acerca de Nexus
     `;
   } else {
@@ -928,7 +923,7 @@ btnLoginInfo?.addEventListener('click', () => {
     loginInfoPanel.classList.remove('hidden');
     btnLoginInfo.classList.add('active');
     btnLoginInfo.innerHTML = `
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 15l-6-6-6 6"/></svg>
+      <i class="mdi mdi-chevron-up"></i>
       Ocultar información
     `;
     loginInfoPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });

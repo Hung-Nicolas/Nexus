@@ -1,29 +1,35 @@
 /* ============================================================
    NEXUS — Design System
-   Paleta inspirada en el logo: azul (#0ea5e9) a púrpura (#8b5cf6)
-   Fondo oscuro, acentos luminosos
+   Paleta: celeste (#38bdf8) + azul oscuro (#0284c7)
+   Fondo oscuro azulado, acentos luminosos
    ============================================================ */
 
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 :root {
-  --nx-bg: #0b0f19;
-  --nx-bg-elevated: #111827;
-  --nx-bg-card: #1a2235;
-  --nx-bg-sidebar: #0f1525;
-  --nx-border: rgba(148, 163, 184, 0.1);
-  --nx-border-hover: rgba(148, 163, 184, 0.18);
-  --nx-text: #f8fafc;
-  --nx-text-muted: #94a3b8;
-  --nx-text-dim: #64748b;
-  --nx-accent-blue: #0ea5e9;
-  --nx-accent-purple: #8b5cf6;
-  --nx-accent-cyan: #22d3ee;
-  --nx-gradient: linear-gradient(135deg, #0ea5e9 0%, #8b5cf6 100%);
-  --nx-gradient-subtle: linear-gradient(135deg, rgba(14,165,233,0.15) 0%, rgba(139,92,246,0.15) 100%);
+  --nx-bg: #0a1628;
+  --nx-bg-elevated: #0d1f3a;
+  --nx-bg-card: #122b4d;
+  --nx-bg-sidebar: #081224;
+  --nx-border: rgba(125, 211, 252, 0.1);
+  --nx-border-hover: rgba(125, 211, 252, 0.2);
+  --nx-text: #f0f9ff;
+  --nx-text-muted: #93c5fd;
+  --nx-text-dim: #60a5fa;
+  --nx-accent-blue: #38bdf8;
+  --nx-accent-dark-blue: #0284c7;
+  --nx-accent-cyan: #7dd3fc;
+  --nx-gradient: linear-gradient(135deg, #38bdf8 0%, #0284c7 100%);
+  --nx-gradient-subtle: linear-gradient(135deg, rgba(56,189,248,0.15) 0%, rgba(2,132,199,0.15) 100%);
   --nx-radius: 14px;
   --nx-radius-sm: 10px;
   --nx-radius-xs: 8px;
-  --nx-shadow: 0 4px 24px rgba(0,0,0,0.4);
-  --nx-shadow-glow: 0 0 40px rgba(14,165,233,0.15);
+  --nx-shadow: 0 4px 24px rgba(0,0,0,0.5);
+  --nx-shadow-glow: 0 0 40px rgba(56,189,248,0.15);
   --nx-transition: all 0.2s ease;
   --nx-sidebar-width: 280px;
 }
@@ -31,6 +37,16 @@
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 html { scroll-behavior: smooth; }
+
+/* Iconos MDI */
+.mdi {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2em;
+  line-height: 1;
+  vertical-align: middle;
+}
 
 body {
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
@@ -71,7 +87,7 @@ body {
   position: fixed;
   width: 350px;
   height: 350px;
-  background: var(--nx-accent-purple);
+  background: var(--nx-accent-dark-blue);
   border-radius: 50%;
   filter: blur(120px);
   opacity: 0.2;
@@ -387,6 +403,7 @@ body {
   border-radius: var(--nx-radius-xs);
   background: transparent;
   color: var(--nx-text-muted);
+  font-size: 20px;
   cursor: pointer;
   transition: var(--nx-transition);
 }
@@ -489,8 +506,10 @@ body {
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.05);
 }
 
-.nx-sidebar-link svg {
+.nx-sidebar-link svg,
+.nx-sidebar-link i {
   flex-shrink: 0;
+  font-size: 18px;
 }
 
 a.nx-sidebar-link {
@@ -626,6 +645,10 @@ a.nx-sidebar-link {
   transition: var(--nx-transition);
 }
 
+.nx-sidebar-logout i {
+  font-size: 16px;
+}
+
 .nx-sidebar-logout:hover {
   background: rgba(239,68,68,0.08);
   color: #f87171;
@@ -661,6 +684,7 @@ a.nx-sidebar-link {
   border-radius: var(--nx-radius-xs);
   background: transparent;
   color: var(--nx-text-muted);
+  font-size: 20px;
   cursor: pointer;
   transition: var(--nx-transition);
 }
@@ -734,7 +758,7 @@ a.nx-sidebar-link {
 .nx-orb-2 {
   width: 240px;
   height: 240px;
-  background: var(--nx-accent-purple);
+  background: var(--nx-accent-dark-blue);
   top: 10px;
   right: -30px;
 }
@@ -750,6 +774,7 @@ a.nx-sidebar-link {
   position: absolute;
   left: 18px;
   color: var(--nx-text-dim);
+  font-size: 20px;
   pointer-events: none;
 }
 
@@ -815,17 +840,14 @@ a.nx-sidebar-link {
 }
 
 .nx-stat:hover {
-  border-color: rgba(14,165,233,0.2);
+  border-color: var(--nx-border-hover);
   transform: translateY(-2px);
 }
 
 .nx-stat-value {
   font-size: 26px;
   font-weight: 700;
-  background: var(--nx-gradient);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: var(--nx-text);
 }
 
 .nx-stat-icon {
@@ -833,12 +855,19 @@ a.nx-sidebar-link {
   height: 26px;
   margin-bottom: 8px;
   color: var(--nx-text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.nx-stat-icon svg {
+.nx-stat-icon svg,
+.nx-stat-icon i {
   width: 100%;
   height: 100%;
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
 }
 
 .nx-stat-label {
@@ -978,7 +1007,7 @@ a.nx-sidebar-link {
 .nx-card-tag-purple {
   background: rgba(139,92,246,0.1);
   border-color: rgba(139,92,246,0.15);
-  color: var(--nx-accent-purple);
+  color: var(--nx-accent-dark-blue);
 }
 
 .nx-card-tag-amber {
@@ -997,10 +1026,13 @@ a.nx-sidebar-link {
 .nx-empty-icon {
   margin-bottom: 14px;
   display: inline-flex;
+  align-items: center;
+  justify-content: center;
   padding: 14px;
   background: var(--nx-bg-card);
   border: 1px solid var(--nx-border);
   border-radius: var(--nx-radius);
+  font-size: 32px;
 }
 
 .nx-empty-text {
@@ -1125,6 +1157,9 @@ a.nx-sidebar-link {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.nx-modal-close i {
   transition: all 0.15s;
 }
 
@@ -1341,7 +1376,7 @@ a.nx-sidebar-link {
 }
 
 .nx-dashboard-card:hover {
-  border-color: rgba(14, 165, 233, 0.22);
+  border-color: var(--nx-border-hover);
 }
 
 .nx-dashboard-card-title {
@@ -1365,9 +1400,9 @@ a.nx-sidebar-link {
   justify-content: space-between;
   gap: 12px;
   padding: 10px 12px;
-  background: rgba(15, 23, 42, 0.4);
+  background: rgba(2, 132, 199, 0.08);
   border-radius: 8px;
-  border: 1px solid rgba(148, 163, 184, 0.08);
+  border: 1px solid var(--nx-border);
 }
 
 .nx-dashboard-item-main {
@@ -1474,8 +1509,10 @@ a.nx-sidebar-link {
   border-bottom: 1px solid var(--nx-border);
 }
 
-.nx-info-card-title svg {
-  color: var(--nx-primary);
+.nx-info-card-title svg,
+.nx-info-card-title i {
+  color: var(--nx-accent-blue);
+  font-size: 20px;
 }
 
 .nx-info-card-title span {
@@ -1510,6 +1547,7 @@ a.nx-sidebar-link {
   color: #4ade80;
   flex-shrink: 0;
   margin-top: 3px;
+  font-size: 16px;
 }
 
 .nx-info-about-block {
@@ -1876,4 +1914,76 @@ a.nx-sidebar-link {
   background: rgba(14, 165, 233, 0.15);
   border-color: rgba(14, 165, 233, 0.35);
   color: var(--nx-text);
+}
+
+/* ============================================================
+   TAILWIND UTILITIES — Skeleton & Scrollbar (estilo GIE)
+   ============================================================ */
+
+@layer components {
+  .skeleton {
+    background: linear-gradient(90deg, rgba(56,189,248,0.08) 25%, rgba(56,189,248,0.15) 50%, rgba(56,189,248,0.08) 75%);
+    background-size: 200% 100%;
+    animation: skeletonShimmer 1.4s ease-in-out infinite;
+    border-radius: 0.375rem;
+  }
+
+  .skeleton-circle {
+    background: linear-gradient(90deg, rgba(56,189,248,0.08) 25%, rgba(56,189,248,0.15) 50%, rgba(56,189,248,0.08) 75%);
+    background-size: 200% 100%;
+    animation: skeletonShimmer 1.4s ease-in-out infinite;
+    border-radius: 50%;
+  }
+
+  .skeleton-text {
+    background: linear-gradient(90deg, rgba(56,189,248,0.08) 25%, rgba(56,189,248,0.15) 50%, rgba(56,189,248,0.08) 75%);
+    background-size: 200% 100%;
+    animation: skeletonShimmer 1.4s ease-in-out infinite;
+    border-radius: 0.25rem;
+  }
+
+  .skeleton-card {
+    background: linear-gradient(90deg, rgba(56,189,248,0.08) 25%, rgba(56,189,248,0.15) 50%, rgba(56,189,248,0.08) 75%);
+    background-size: 200% 100%;
+    animation: skeletonShimmer 1.4s ease-in-out infinite;
+    border-radius: 0.75rem;
+  }
+}
+
+@keyframes skeletonShimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Scrollbars estilo GIE, adaptado a paleta oscura */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--nx-bg-elevated);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--nx-bg-card);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--nx-text-dim);
+}
+
+/* Scrollbar fina para sidebar */
+.nx-sidebar::-webkit-scrollbar {
+  width: 4px;
+}
+
+.nx-sidebar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.nx-sidebar::-webkit-scrollbar-thumb {
+  background: var(--nx-bg-card);
+  border-radius: 2px;
 }
