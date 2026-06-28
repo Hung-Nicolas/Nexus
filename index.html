@@ -19,7 +19,6 @@
             <div class="nx-login-brand">
               <img src="/src/assets/Nexus_logo.png" alt="Nexus" class="nx-login-logo">
             </div>
-            <p class="nx-login-subtitle">Base de Datos Escolar Maestra</p>
             <p class="nx-login-hint">Sistema cerrado · Solo personal autorizado</p>
 
             <form id="loginForm" class="nx-login-form">
@@ -37,34 +36,6 @@
             </form>
 
             <p id="loginError" class="nx-login-error"></p>
-
-            <button id="btnLoginInfo" class="nx-login-info-link" type="button">
-              <i class="mdi mdi-information-outline"></i>
-              Acerca de Nexus
-            </button>
-          </div>
-
-          <!-- Panel de info en login -->
-          <div id="loginInfoPanel" class="nx-login-info-panel hidden">
-            <div class="nx-info-stack">
-              <!-- Novedades -->
-              <div class="nx-info-card">
-                <h3 class="nx-info-card-title">
-                  <i class="mdi mdi-sparkles"></i>
-                  Novedades <span id="loginInfoVersionNovedades"></span>
-                </h3>
-                <div id="loginInfoNovedades" class="nx-info-card-body"></div>
-              </div>
-
-              <!-- Acerca de -->
-              <div class="nx-info-card">
-                <h3 class="nx-info-card-title">
-                  <i class="mdi mdi-information-outline"></i>
-                  Acerca de
-                </h3>
-                <div id="loginInfoAcerca" class="nx-info-card-body"></div>
-              </div>
-            </div>
           </div>
         </div>
       </section>
@@ -169,10 +140,7 @@
             <section class="nx-hero" style="padding-bottom: 24px;">
               <div class="nx-hero-content">
                 <h1 class="nx-hero-title">Dashboard</h1>
-                <p class="nx-hero-subtitle">Resumen de la base de datos escolar en tiempo real.</p>
               </div>
-              <div class="nx-orb nx-orb-1"></div>
-              <div class="nx-orb nx-orb-2"></div>
             </section>
 
             <section class="nx-stats" id="dashboardStats">
@@ -191,8 +159,7 @@
           <div id="sectionBuscador" class="hidden">
             <section class="nx-hero">
               <div class="nx-hero-content">
-                <h1 class="nx-hero-title">Base de Datos Escolar Maestra</h1>
-                <p class="nx-hero-subtitle">Buscá y filtrá alumnos, personal, cursos y materias en tiempo real.</p>
+                <h1 class="nx-hero-title" id="buscadorTitle">Buscador</h1>
 
                 <div class="nx-searchbox">
                   <i class="mdi mdi-magnify nx-search-icon"></i>
@@ -204,8 +171,6 @@
                 <div id="mainFilters" class="nx-main-filters"></div>
               </div>
 
-              <div class="nx-orb nx-orb-1"></div>
-              <div class="nx-orb nx-orb-2"></div>
             </section>
 
             <section class="nx-results">
@@ -225,7 +190,7 @@
             <section class="nx-hero" style="padding-bottom: 24px;">
               <div class="nx-hero-content">
                 <h1 class="nx-hero-title">Nexus</h1>
-                <p class="nx-hero-subtitle" id="infoSubtitle">Base de Datos Escolar Maestra</p>
+                <p class="nx-hero-subtitle" id="infoSubtitle"></p>
               </div>
             </section>
 
@@ -254,7 +219,7 @@
 
           <!-- Footer -->
           <footer class="nx-footer">
-            <p class="nx-footer-text">Nexus — Base de Datos Escolar Maestra</p>
+            <p class="nx-footer-text">Nexus</p>
           </footer>
         </main>
       </div>
@@ -266,7 +231,7 @@
     <div class="nx-modal-backdrop" id="modalLogoutBackdrop"></div>
     <div class="nx-modal-card" style="max-width: 380px; text-align: center;">
       <div class="nx-modal-body" style="padding: 32px 24px;">
-        <div style="width: 48px; height: 48px; border-radius: 50%; background: rgba(239,68,68,0.1); color: #ef4444; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px;">
+        <div class="nx-modal-icon nx-modal-icon-danger">
           <i class="mdi mdi-logout-variant"></i>
         </div>
         <h3 style="font-size: 16px; font-weight: 600; color: var(--nx-text); margin: 0 0 8px;">¿Cerrar sesión?</h3>

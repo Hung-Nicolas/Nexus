@@ -62,6 +62,7 @@ body {
 /* ========== LOGIN ========== */
 .nx-login {
   display: flex;
+  align-items: center;
   justify-content: center;
   min-height: 100vh;
   padding: 40px 24px;
@@ -69,41 +70,14 @@ body {
   overflow-y: auto;
 }
 
-.nx-login::before {
-  content: '';
-  position: fixed;
-  width: 400px;
-  height: 400px;
-  background: var(--nx-accent-blue);
-  border-radius: 50%;
-  filter: blur(120px);
-  opacity: 0.2;
-  top: -100px;
-  left: -100px;
-}
-
-.nx-login::after {
-  content: '';
-  position: fixed;
-  width: 350px;
-  height: 350px;
-  background: var(--nx-accent-dark-blue);
-  border-radius: 50%;
-  filter: blur(120px);
-  opacity: 0.2;
-  bottom: -80px;
-  right: -80px;
-}
-
 .nx-login-wrapper {
   position: relative;
   z-index: 2;
   width: 100%;
-  max-width: 900px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 24px;
+  justify-content: center;
 }
 
 .nx-login-card {
@@ -126,7 +100,8 @@ body {
   height: 64px;
   object-fit: contain;
   filter: drop-shadow(0 0 12px rgba(14,165,233,0.3));
-  margin-bottom: 12px;
+  margin: 0 auto 12px;
+  display: block;
 }
 
 .nx-login-wordmark {
@@ -139,6 +114,13 @@ body {
   text-align: center;
   font-size: 14px;
   color: var(--nx-text-muted);
+  margin-bottom: 28px;
+}
+
+.nx-login-hint {
+  text-align: center;
+  font-size: 12px;
+  color: var(--nx-text-dim);
   margin-bottom: 28px;
 }
 
@@ -738,31 +720,6 @@ a.nx-sidebar-link {
   margin-bottom: 28px;
 }
 
-/* Orbs decoration */
-.nx-orb {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(80px);
-  opacity: 0.3;
-  pointer-events: none;
-}
-
-.nx-orb-1 {
-  width: 280px;
-  height: 280px;
-  background: var(--nx-accent-blue);
-  top: -60px;
-  left: -40px;
-}
-
-.nx-orb-2 {
-  width: 240px;
-  height: 240px;
-  background: var(--nx-accent-dark-blue);
-  top: 10px;
-  right: -30px;
-}
-
 /* Search Box */
 .nx-searchbox {
   position: relative;
@@ -1127,6 +1084,22 @@ a.nx-sidebar-link {
   animation: nx-modal-slide-up 0.25s ease;
   display: flex;
   flex-direction: column;
+}
+
+.nx-modal-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 16px;
+  font-size: 28px;
+}
+
+.nx-modal-icon-danger {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
 }
 
 .nx-modal-header {

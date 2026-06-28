@@ -31,10 +31,6 @@ const appContainer = document.getElementById('appContainer');
 const loginForm = document.getElementById('loginForm');
 const loginError = document.getElementById('loginError');
 const loginBtnText = document.getElementById('loginBtnText');
-const btnLoginInfo = document.getElementById('btnLoginInfo');
-const loginInfoPanel = document.getElementById('loginInfoPanel');
-const loginInfoNovedades = document.getElementById('loginInfoNovedades');
-const loginInfoAcerca = document.getElementById('loginInfoAcerca');
 const sidebar = document.getElementById('sidebar');
 const sidebarOverlay = document.getElementById('sidebarOverlay');
 const openSidebarBtn = document.getElementById('openSidebar');
@@ -54,6 +50,7 @@ const logoutCountdown = document.getElementById('logoutCountdown');
 const searchInput = document.getElementById('searchInput');
 const resultsGrid = document.getElementById('resultsGrid');
 const resultsTitle = document.getElementById('resultsTitle');
+const buscadorTitle = document.getElementById('buscadorTitle');
 const resultsCount = document.getElementById('resultsCount');
 const resultsActions = document.getElementById('resultsActions');
 const sidebarLinks = document.querySelectorAll('.nx-sidebar-link');
@@ -64,7 +61,6 @@ const infoSubtitle = document.getElementById('infoSubtitle');
 const infoVersionNovedades = document.getElementById('infoVersionNovedades');
 const infoNovedades = document.getElementById('infoNovedades');
 const infoAcerca = document.getElementById('infoAcerca');
-const loginInfoVersionNovedades = document.getElementById('loginInfoVersionNovedades');
 const dashboardStatsGrid = document.getElementById('dashboardStatsGrid');
 
 // Modal Detalle
@@ -822,6 +818,7 @@ function cambiarTabla(nuevaTabla) {
 
   };
   searchInput.placeholder = placeholders[tablaActual] || 'Buscar...';
+  if (buscadorTitle) buscadorTitle.textContent = config.titulo;
 
   resultsActions.innerHTML = '';
   renderizarFiltros();
@@ -899,36 +896,6 @@ function renderizarInfoNexus() {
   infoNovedades.innerHTML = htmlNovedades();
   infoAcerca.innerHTML = htmlAcercaDe();
 }
-
-function renderizarLoginInfo() {
-  if (!loginInfoNovedades || !loginInfoAcerca) return;
-
-  if (loginInfoVersionNovedades) loginInfoVersionNovedades.textContent = NEXUS_INFO.novedades?.[0]?.version || NEXUS_INFO.version;
-
-  loginInfoNovedades.innerHTML = htmlNovedades();
-  loginInfoAcerca.innerHTML = htmlAcercaDe();
-}
-
-btnLoginInfo?.addEventListener('click', () => {
-  const visible = !loginInfoPanel.classList.contains('hidden');
-  if (visible) {
-    loginInfoPanel.classList.add('hidden');
-    btnLoginInfo.classList.remove('active');
-    btnLoginInfo.innerHTML = `
-      <i class="mdi mdi-information-outline"></i>
-      Acerca de Nexus
-    `;
-  } else {
-    renderizarLoginInfo();
-    loginInfoPanel.classList.remove('hidden');
-    btnLoginInfo.classList.add('active');
-    btnLoginInfo.innerHTML = `
-      <i class="mdi mdi-chevron-up"></i>
-      Ocultar información
-    `;
-    loginInfoPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }
-});
 
 // ========== INICIALIZAR ==========
 async function iniciarApp() {
