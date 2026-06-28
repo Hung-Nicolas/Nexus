@@ -10,6 +10,9 @@ import gatewayRoutes from './routes/gateway.js';
 
 const app = express();
 
+// Railway (y otros proxies) envían X-Forwarded-For; Express debe confiar en el proxy más cercano
+app.set('trust proxy', 1);
+
 app.use(helmet());
 
 const allowedOrigins = [

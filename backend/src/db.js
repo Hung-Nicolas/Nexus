@@ -6,6 +6,8 @@ const { Pool } = pg;
 export const pool = new Pool({
   connectionString: config.databaseUrl,
   ssl: config.nodeEnv === 'production' ? { rejectUnauthorized: false } : false,
+  // Forzar IPv4: algunos hosts (Supabase) resuelven a IPv6 pero Railway no puede rutearlo
+  family: 4,
 });
 
 pool.on('error', (err) => {
