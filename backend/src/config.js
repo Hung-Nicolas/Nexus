@@ -24,5 +24,6 @@ export const config = {
   jwtAccessExpiresIn: process.env.JWT_ACCESS_EXPIRES_IN || '15m',
   jwtRefreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
   corsOrigin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+  corsOriginPattern: process.env.CORS_ORIGIN_PATTERN || null,
   bcryptRounds: parseInt(process.env.BCRYPT_ROUNDS || '12', 10),
 };
