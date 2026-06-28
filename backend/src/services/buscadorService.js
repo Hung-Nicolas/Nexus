@@ -10,7 +10,7 @@ function escapeIlike(termino) {
 
 function construirSelectRelaciones(tabla) {
   const config = configTablas[tabla];
-  const selectBase = config.campos;
+  const selectBase = config.campos.split(',').map(c => `${tabla}.${c.trim()}`).join(', ');
   const joins = [];
   const selectsRel = [];
 

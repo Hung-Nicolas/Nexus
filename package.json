@@ -5,9 +5,9 @@
   "description": "Base de datos escolar maestra - Nexus. Frontend Vite + backend Express con Supabase solo como PostgreSQL.",
   "type": "module",
   "scripts": {
-    "dev": "concurrently 'npm run dev:backend' 'npm run dev:frontend'",
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\" ",
     "dev:frontend": "vite",
-    "dev:backend": "nodemon backend/src/index.js",
+    "dev:backend": "nodemon --watch backend/src --ignore dist --ignore node_modules backend/src/index.js",
     "build": "vite build",
     "preview": "vite preview",
     "db:types": "supabase gen types typescript --project-id tu-project-id --schema public > src/lib/database.types.ts"

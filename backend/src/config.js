@@ -1,4 +1,12 @@
-import 'dotenv/config';
+import dotenv from 'dotenv';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+
+// Cargar .env desde la carpeta backend/, sin importar desde dónde se ejecute
+const envPath = join(__dirname, '..', '.env');
+dotenv.config({ path: envPath });
 
 function required(name) {
   const value = process.env[name];

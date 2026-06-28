@@ -775,13 +775,7 @@ async function buscar(query) {
     return;
   }
 
-  // 2. Cancelar request anterior realmente (abort HTTP)
-  if (abortControllerBusqueda) {
-    abortControllerBusqueda.abort();
-  }
-  abortControllerBusqueda = new AbortController();
-
-  // 3. Mostrar skeleton solo si no hay datos visibles
+  // 2. Mostrar skeleton solo si no hay datos visibles
   if (!resultsGrid.querySelector('.nx-card')) {
     resultsGrid.innerHTML = `
       <div class="nx-empty">
