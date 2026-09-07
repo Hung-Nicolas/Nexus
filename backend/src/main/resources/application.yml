@@ -1,0 +1,30 @@
+spring:
+  application:
+    name: nexus
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/nexus}
+    username: ${DB_USERNAME:nexus}
+    password: ${DB_PASSWORD:nexus_local_password}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+server:
+  port: ${SERVER_PORT:3000}
+
+nexus:
+  jwt:
+    secret: ${JWT_SECRET}
+    access-expires-in: ${JWT_ACCESS_EXPIRES_IN:15m}
+    refresh-expires-in: ${JWT_REFRESH_EXPIRES_IN:7d}
+  bcrypt-rounds: ${BCRYPT_ROUNDS:12}
+  cors:
+    origins: ${CORS_ORIGIN:http://localhost:5173}
+    origin-pattern: ${CORS_ORIGIN_PATTERN:}
+  env: ${APP_ENV:development}

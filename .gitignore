@@ -17,6 +17,12 @@ dist-ssr
 !.vscode/extensions.json
 .idea
 
+# Backend Java
+backend/build/
+backend/.gradle/
+backend/*.jar
+!backend/gradle/wrapper/gradle-wrapper.jar
+
 # OS
 .DS_Store
 Thumbs.db
@@ -24,10 +30,8 @@ Thumbs.db
 #AGENTS
 AGENTS.md
 
-# SQL files (only schema.sql and express migrations are tracked)
-supabase/*.sql
-!supabase/schema.sql
-!supabase/migracion_express_auth.sql
-
 .gitignore
 docs/*
+
+# Herramientas locales (JDK descargado para desarrollo en WSL)
+.tools/

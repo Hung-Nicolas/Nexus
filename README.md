@@ -1,9 +1,9 @@
 <div align="center">
-  <img src="src/assets/Nexus_logo.png" width="120" alt="Nexus Logo">
+  <img src="frontend/src/assets/Nexus_logo.png" width="120" alt="Nexus Logo">
   <br><br>
   
   <p><strong>Base de Datos Escolar Maestra</strong></p>
-  <p>Base de datos escolar maestra con backend Express y buscador web integrado.<br>
+  <p>Base de datos escolar maestra con backend Spring Boot y buscador web integrado.<br>
   Conecta alumnos, responsables, personal, cursos y materias en un solo lugar.</p>
 </div>
 
@@ -13,7 +13,7 @@
 
 Nexus es la capa de datos escolar central del ecosistema. Otros proyectos —como <strong>GIE</strong> (Gestor de Informes Escolares) y desarrollos de equipos externos— se conectan a través del <strong>API Gateway</strong> de Nexus, un sistema de API keys con permisos de solo lectura por tabla que garantiza acceso controlado sin exponer credenciales.
 
-El backend está implementado en <strong>Express</strong> y se conecta directamente a PostgreSQL usando el driver <code>pg</code>. <strong>Supabase se utiliza únicamente como base de datos</strong>; la autenticación, autorización y el gateway ahora viven en el backend propio.
+El backend está implementado en <strong>Spring Boot (Java 17 + Gradle)</strong> y se conecta directamente a una base <strong>PostgreSQL local</strong> con JDBC. La autenticación, autorización y el gateway viven en el backend propio; no se depende de servicios externos.
 
 El proyecto incluye tanto el <strong>schema PostgreSQL</strong> (tablas, relaciones, RLS e índices) como un <strong>frontend de búsqueda de solo lectura</strong> con diseño propio, filtros por tabla y estadísticas en tiempo real. No permite crear, editar ni eliminar registros desde la interfaz web.
 
@@ -57,9 +57,9 @@ Una interfaz dark-mode inspirada en la identidad visual de Nexus permite explora
 
 ## Conexión con otros proyectos
 
-Nexus no trabaja solo. Proyectos como <strong>GIE</strong> (Gestor de Informes Escolares) consumen datos maestros a través del endpoint <code>/api/v1/gateway</code> del backend Express usando una API key propia, sin acceder directamente a la base de datos.
+Nexus no trabaja solo. Proyectos como <strong>GIE</strong> (Gestor de Informes Escolares) consumen datos maestros a través del endpoint <code>/api/v1/gateway</code> del backend usando una API key propia, sin acceder directamente a la base de datos.
 
-Cada proyecto externo recibe una <strong>API key independiente</strong> con permisos declarativos por tabla (solo lectura). Esto permite que cada equipo evolucione su aplicación sin depender del schema de los demás, siempre alineados en los datos base, y sin compartir credenciales de Supabase.
+Cada proyecto externo recibe una <strong>API key independiente</strong> con permisos declarativos por tabla (solo lectura). Esto permite que cada equipo evolucione su aplicación sin depender del schema de los demás, siempre alineados en los datos base, y sin compartir credenciales de la base de datos.
 
 ### Cómo integrar un proyecto externo
 
@@ -86,32 +86,75 @@ Cada proyecto externo recibe una <strong>API key independiente</strong> con perm
 
 ## Stack
 
-Express · PostgreSQL (Supabase) · JWT · Vite · JavaScript vanilla · CSS3
+Spring Boot · Java 17 · PostgreSQL (local vía Docker Compose) · JWT · Vite · JavaScript vanilla · CSS3
+
+La base de datos corre **localmente** (PostgreSQL en Docker, o un PostgreSQL instalado en la máquina). El backend funciona con cualquier PostgreSQL compatible; no hay dependencia de servicios externos.
 
 ---
 
 ## Cómo correr el proyecto
 
-1. Instalar dependencias:
+### Desarrollo local
+
+1. Levantar la base de datos (requiere Docker):
    ```bash
+   docker compose up -d postgres
+   ```
+   La primera vez inicializa el schema (`db/schema.sql`): tablas, RLS y el usuario regente por defecto.
+
+2. Instalar dependencias del frontend:
+   ```bash
+   cd frontend
    npm install
+   cp .env.example .env
+   # VITE_API_URL=http://localhost:3000/api/v1
    ```
 
-2. Copiar `.env.example` a `.env` y completar las variables:
-   - `VITE_API_URL`: URL del backend Express (`http://localhost:3000/api/v1`)
-   - `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY`: solo para conexión de BD
-
-3. Copiar `backend/.env.example` a `backend/.env` y completar:
-   - `DATABASE_URL`: connection string de PostgreSQL de Supabase
-   - `JWT_SECRET`: clave secreta para firmar tokens
+3. Configurar las variables de entorno del backend (ver `backend/.env.example`; los defaults apuntan a la base local):
+   - `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`: conexión JDBC (default: `localhost:5432/nexus`, usuario `nexus`)
+   - `JWT_SECRET`: clave secreta para firmar tokens (mínimo 32 caracteres)
    - `CORS_ORIGIN`: URL del frontend (`http://localhost:5173`)
 
-4. Aplicar las migraciones SQL en Supabase (comenzando por `supabase/migracion_express_auth.sql`).
-
-5. Levantar frontend y backend:
+4. Levantar el backend (requiere JDK 17):
    ```bash
+   cd backend
+   ./gradlew bootRun
+   ```
+
+5. En otra terminal, levantar el frontend:
+   ```bash
+   cd frontend
    npm run dev
    ```
+
+### Deploy en el server de la escuela
+
+Este modo usa Docker Compose para levantar PostgreSQL, el backend Spring Boot y el frontend estático con Nginx en un solo servidor.
+
+1. Instalar dependencias y generar el build del frontend:
+   ```bash
+   cd frontend
+   npm install
+   cp .env.example .env
+   # Ajustar VITE_API_URL=/api/v1 en .env para usar el proxy de Nginx
+   npm run build
+   ```
+
+2. Configurar variables del backend (Docker Compose las lee del entorno o de un archivo `.env` en la raíz):
+   - `JWT_SECRET`: cambiar al menos este valor por uno seguro (mínimo 32 caracteres).
+
+3. Levantar los servicios:
+   ```bash
+   docker compose up -d --build
+   ```
+
+4. Acceder a `http://localhost` (o la IP del servidor) y loguearse con:
+   - Usuario: `regente@nexus.local`
+   - Contraseña: `Regente123!`
+
+5. Cambiar la contraseña del regente y crear usuarios adicionales directamente en la base (ver `backend/README.md`).
+
+> **Nota:** el schema (`db/schema.sql`) crea roles PostgreSQL (`anon`, `authenticated`, `service_role`) y funciones `auth.role()` / `auth.uid()` para mantener Row Level Security de forma autónoma.
 
 ---
 

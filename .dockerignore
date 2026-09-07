@@ -1,15 +1,13 @@
-node_modules
-dist
-.env
-.env.*
+# Contexto de build del backend (el frontend no entra en la imagen)
+.tools
 .git
 .vscode
 .idea
 *.md
 docs
-src
-index.html
-vite.config.js
-tailwind.config.js
-postcss.config.js
-supabase
+frontend/node_modules
+frontend/dist
+backend/build
+backend/.gradle
+.env
+.env.*
