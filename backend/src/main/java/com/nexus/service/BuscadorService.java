@@ -215,11 +215,13 @@ public class BuscadorService {
 
     /** SET LOCAL dentro de la transacción actual (requerido por el RLS del schema local). */
     private void aplicarContextoUsuario() {
-        jdbcTemplate.update("SET LOCAL app.current_role = 'authenticated'");
+        // set_config(..., true) equivale a SET LOCAL; "current_role" es palabra
+        // reservada y no se puede usar como identificador calificado sin comillas.
+        jdbcTemplate.update("SELECT set_config('app.current_role', 'authenticated', true)");
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth != null && auth.getPrincipal() instanceof String userId
                 && userId.matches("^[0-9a-fA-F-]{36}$")) {
-            jdbcTemplate.update("SET LOCAL app.current_user_id = '" + userId + "'");
+            jdbcTemplate.update("SELECT set_config('app.current_user_id', ?, true)", userId);
         }
     }
 

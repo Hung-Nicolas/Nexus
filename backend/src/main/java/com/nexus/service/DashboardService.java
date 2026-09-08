@@ -24,7 +24,7 @@ public class DashboardService {
 
     public Map<String, Object> obtenerStats() {
         return transactionTemplate.execute(tx -> {
-            jdbcTemplate.update("SET LOCAL app.current_role = 'authenticated'");
+            jdbcTemplate.update("SELECT set_config('app.current_role', 'authenticated', true)");
 
             Map<String, Object> stats = new LinkedHashMap<>();
             for (String tabla : TABLAS_CONTAR) {
