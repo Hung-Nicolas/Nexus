@@ -39,7 +39,8 @@ No hay dependencia de servicios externos (ni Supabase): la base corre local al d
 ├── Dockerfile                # Build multi-stage del jar Spring Boot (temurin 17)
 ├── nginx.conf                # Sirve el frontend y hace proxy de /api/v1 al backend
 ├── db/
-│   └── schema.sql            # Tablas, índices, RLS, roles y usuario regente por defecto
+│   ├── schema.sql            # Tablas, índices, RLS, roles y usuario regente por defecto
+│   └── seed-test.sql         # Datos de prueba para desarrollo (idempotente, NO va en producción)
 ├── docs/
 │   ├── DER.md                # Diagrama entidad-relación
 │   ├── api-externos.md       # Documentación técnica para proyectos que consumen Nexus
@@ -88,7 +89,7 @@ No hay dependencia de servicios externos (ni Supabase): la base corre local al d
    ```bash
    docker compose up -d postgres
    ```
-   La primera vez inicializa `db/schema.sql` (tablas, RLS, usuario regente por defecto).
+   La primera vez inicializa `db/schema.sql` (tablas, RLS, usuario regente por defecto). Para cargar datos de prueba: `docker exec -i nexus-postgres psql -U nexus -d nexus < db/seed-test.sql`.
 
 2. **Backend** (requiere JDK 17):
    ```bash
@@ -148,10 +149,10 @@ Levanta PostgreSQL + backend (puerto 3000) + Nginx sirviendo `frontend/dist` (pu
 - **Autorización**: Spring Security. Todo requiere JWT excepto login/logout/refresh y el gateway (que autentica por API key propia en el servicio). El único rol con acceso pleno al frontend es `regente`. Roles válidos en la tabla `usuarios`: `regente`, `subregente`, `rector`, `vicerector`, `docente`, `preceptor`, `doe`, `pat`, `cooperadora`, `jefe_de_taller`.
 - **Rate limiting** (bucket4j, por IP): login 20/15min · gateway 100/min · resto de la API 200/min.
 - **Buscador**: SQL dinámico armado con JdbcTemplate a partir de la config declarativa de `ConfigTablas`. El auth y el gateway usan Spring Data JPA.
-- **RLS**: `db/schema.sql` crea roles PostgreSQL (`anon`, `authenticated`, `service_role`) y un schema `auth` local con `auth.role()` / `auth.uid()` que reemplazan a Supabase Auth. El backend setea antes de cada query:
+- **RLS**: `db/schema.sql` crea roles PostgreSQL (`anon`, `authenticated`, `service_role`) y un schema `auth` local con `auth.role()` / `auth.uid()` que reemplazan a Supabase Auth. El backend setea antes de cada query (vía `set_config`, equivalente a `SET LOCAL`, porque `current_role` es palabra reservada y rompe el parser como identificador calificado):
   ```sql
-  SET LOCAL app.current_role = 'authenticated' | 'service_role';
-  SET LOCAL app.current_user_id = '<uuid>';
+  SELECT set_config('app.current_role', 'authenticated' | 'service_role', true);
+  SELECT set_config('app.current_user_id', '<uuid>', true);
   ```
   Requisito: PostgreSQL 14+ con extensión `pgcrypto`.
 
