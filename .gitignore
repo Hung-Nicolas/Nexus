@@ -32,6 +32,8 @@ AGENTS.md
 
 .gitignore
 docs/*
+screenshots/
+
 
 # Herramientas locales (JDK descargado para desarrollo en WSL)
 .tools/
