@@ -188,3 +188,32 @@ export async function apiOpcionesFiltros(tabla: string): Promise<OpcionesFiltros
   const { data } = await apiClient.get<OpcionesFiltrosResponse>(`/tablas/${tabla}/opciones-filtros`);
   return data;
 }
+
+export async function apiExportarTodo(): Promise<{ blob: Blob; filename: string }> {
+  const response = await apiClient.get('/exportar', {
+    responseType: 'blob',
+    timeout: 60000,
+  });
+
+  const disposition = response.headers['content-disposition'] as string | undefined;
+  const filename = extraerNombreArchivo(disposition) || 'nexus-export.zip';
+
+  return { blob: response.data as Blob, filename };
+}
+
+function extraerNombreArchivo(disposition?: string): string | null {
+  if (!disposition) return null;
+  const match = disposition.match(/filename="?([^"]+)"?/);
+  return match?.[1] ?? null;
+}
+
+export function descargarArchivo(blob: Blob, filename: string): void {
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(url);
+}

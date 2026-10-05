@@ -1,6 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useStatsQuery } from '../api/queries';
 import { useUIStore } from '../stores/useUIStore';
+import { useAuthStore } from '../stores/useAuthStore';
+import { apiExportarTodo, descargarArchivo } from '../api/client';
 import {
   GraduationCap,
   Users,
@@ -10,6 +12,8 @@ import {
   Award,
   MapPin,
   ExternalLink,
+  Download,
+  AlertCircle,
 } from 'lucide-react';
 import { Skeleton } from '../components/ui/Skeleton';
 import { NombreTabla } from '../types/entidades';
@@ -17,6 +21,28 @@ import { NombreTabla } from '../types/entidades';
 export const DashboardView: React.FC = () => {
   const { data: stats, isLoading, isError } = useStatsQuery();
   const { setTabla } = useUIStore();
+  const { perfil } = useAuthStore();
+  const [exportando, setExportando] = useState(false);
+  const [errorExportar, setErrorExportar] = useState<string | null>(null);
+
+  const esRegente = perfil?.rol === 'regente';
+
+  const handleExportar = async () => {
+    setExportando(true);
+    setErrorExportar(null);
+    try {
+      const { blob, filename } = await apiExportarTodo();
+      descargarArchivo(blob, filename);
+    } catch (err: any) {
+      const mensaje =
+        err.response?.status === 403
+          ? 'No tenés permisos para exportar la base de datos.'
+          : 'No se pudo generar la exportación. Intentá de nuevo.';
+      setErrorExportar(mensaje);
+    } finally {
+      setExportando(false);
+    }
+  };
 
   const statItems = [
     {
@@ -125,6 +151,45 @@ export const DashboardView: React.FC = () => {
           </div>
         ))}
       </div>
+
+      {esRegente && (
+        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <h3 className="text-sm font-semibold text-slate-900 dark:text-zinc-100">
+                Exportar base de datos
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-zinc-400 mt-1">
+                Descargar un archivo ZIP con un CSV por cada tabla de negocio.
+              </p>
+            </div>
+            <button
+              onClick={handleExportar}
+              disabled={exportando}
+              className="inline-flex items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-60 disabled:cursor-not-allowed dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200 transition-colors"
+            >
+              {exportando ? (
+                <>
+                  <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white dark:border-zinc-900/30 dark:border-t-zinc-900" />
+                  Generando...
+                </>
+              ) : (
+                <>
+                  <Download className="h-4 w-4" />
+                  Descargar ZIP
+                </>
+              )}
+            </button>
+          </div>
+
+          {errorExportar && (
+            <div className="mt-4 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+              <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+              <span>{errorExportar}</span>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 };
