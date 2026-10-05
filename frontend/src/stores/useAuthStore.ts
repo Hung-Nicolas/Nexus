@@ -6,9 +6,11 @@ interface AuthState {
   perfil: UsuarioPerfil | null;
   status: 'idle' | 'loading' | 'authenticated' | 'unauthenticated';
   error: string | null;
+  esModoDemo: boolean;
   
   // Acciones
   iniciarSesion: (email: string, password: string) => Promise<boolean>;
+  iniciarSesionDemo: () => void;
   cerrarSesion: () => Promise<void>;
   restaurarSesion: () => Promise<void>;
   limpiarError: () => void;
@@ -18,6 +20,22 @@ export const useAuthStore = create<AuthState>((set) => ({
   perfil: null,
   status: 'idle',
   error: null,
+  esModoDemo: false,
+
+  iniciarSesionDemo: () => {
+    set({
+      perfil: {
+        id: 'demo-regente-uuid',
+        email: 'regente@nexus.local',
+        nombre: 'Tixiano',
+        apellido: 'Regente',
+        rol: 'regente',
+      },
+      status: 'authenticated',
+      error: null,
+      esModoDemo: true,
+    });
+  },
 
   iniciarSesion: async (email: string, password: string) => {
     set({ status: 'loading', error: null });
