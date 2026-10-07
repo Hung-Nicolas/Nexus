@@ -6,6 +6,7 @@ import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
+import java.sql.SQLException;
 import java.sql.Time;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -15,6 +16,7 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.RowCallbackHandler;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -102,19 +104,21 @@ public class ExportarService {
             writer.write('\n');
 
             // Filas
-            jdbcTemplate.query("SELECT * FROM public." + tabla, (ResultSet rs) -> {
-                List<String> valores = new ArrayList<>(columnas.size());
-                for (int i = 1; i <= columnas.size(); i++) {
-                    Object valor = rs.getObject(i);
-                    valores.add(valor == null ? "" : formatearValor(valor));
+            jdbcTemplate.query("SELECT * FROM public." + tabla, new RowCallbackHandler() {
+                @Override
+                public void processRow(ResultSet rs) throws SQLException {
+                    List<String> valores = new ArrayList<>(columnas.size());
+                    for (int i = 1; i <= columnas.size(); i++) {
+                        Object valor = rs.getObject(i);
+                        valores.add(valor == null ? "" : formatearValor(valor));
+                    }
+                    try {
+                        writer.write(lineaCsv(valores));
+                        writer.write('\n');
+                    } catch (IOException e) {
+                        throw new RuntimeException("Error escribiendo fila de CSV", e);
+                    }
                 }
-                try {
-                    writer.write(lineaCsv(valores));
-                    writer.write('\n');
-                } catch (IOException e) {
-                    throw new RuntimeException("Error escribiendo fila de CSV", e);
-                }
-                return null;
             });
 
             writer.flush();

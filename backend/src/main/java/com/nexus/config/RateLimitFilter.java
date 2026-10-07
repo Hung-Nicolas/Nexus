@@ -54,7 +54,8 @@ public class RateLimitFilter extends OncePerRequestFilter {
                 || path.startsWith("/api/v1/registros/")
                 || path.startsWith("/api/v1/tablas/")
                 || "/api/v1/stats".equals(path)
-                || "/api/v1/exportar".equals(path)) {
+                || "/api/v1/exportar".equals(path)
+                || "/api/v1/cargar-csv".equals(path)) {
             bucket = bucketPara(ip, bucketsApi, () -> Bandwidth.builder()
                     .capacity(200).refillGreedy(200, Duration.ofMinutes(1)).build());
         }

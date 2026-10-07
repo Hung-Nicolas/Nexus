@@ -202,19 +202,19 @@ SELECT a.id, v.nombre, v.apellido, v.telefono, v.email, v.fecha_nacimiento, v.ge
        (SELECT id_domicilio FROM public.domicilios WHERE calle = v.calle AND numero = v.numero)
 FROM public.alumnos a
 JOIN (VALUES
-    (45000001, 'Martín',   'González',  '11 6666-0001', 'martin.gonzalez@test.local',  '1978-05-10', 'Masculino', 'padre', 'Av. Siempre Viva', 742),
-    (45000001, 'Paula',    'González',  '11 6666-0002', 'paula.gonzalez@test.local',   '1980-09-14', 'Femenino',  'madre', 'Av. Siempre Viva', 742),
-    (45000002, 'Silvia',   'Fernández', '11 6666-0003', 'silvia.fernandez@test.local', '1982-02-21', 'Femenino',  'madre', 'Calle Falsa',      123),
-    (45000003, 'Andrés',   'Martínez',  '11 6666-0004', 'andres.martinez@test.local',  '1975-11-02', 'Masculino', 'padre', 'Av. Rivadavia',    4500),
-    (45000004, 'Verónica', 'López',     '11 6666-0005', 'veronica.lopez@test.local',   '1983-07-19', 'Femenino',  'madre', 'Belgrano',         890),
-    (45000005, 'Gustavo',  'Pérez',     '11 6666-0006', 'gustavo.perez@test.local',    '1970-01-25', 'Masculino', 'padre', 'San Martín',       321),
-    (45000006, 'Nadia',    'Ramírez',   '11 6666-0007', 'nadia.ramirez@test.local',    '1986-04-08', 'Femenino',  'madre', 'Mitre',            55),
-    (45000007, 'Oscar',    'Torres',    '11 6666-0008', 'oscar.torres@test.local',     '1977-10-30', 'Masculino', 'padre', 'Pueyrredón',       1670),
-    (45000008, 'Marcela',  'Sosa',      '11 6666-0009', 'marcela.sosa@test.local',     '1981-06-12', 'Femenino',  'madre', 'Sarmiento',        940),
-    (45000009, 'Federico', 'Acosta',    '11 6666-0010', 'federico.acosta@test.local',  '1974-08-23', 'Masculino', 'padre', 'Av. Siempre Viva', 742),
-    (45000010, 'Gabriela', 'Benítez',   '11 6666-0011', 'gabriela.benitez@test.local', '1987-12-05', 'Femenino',  'tutor', 'Calle Falsa',      123),
-    (45000011, 'Hernán',   'Medina',    '11 6666-0012', 'hernan.medina@test.local',    '1979-03-17', 'Masculino', 'padre', 'Belgrano',         890),
-    (45000012, 'Julia',    'Vega',      '11 6666-0013', 'julia.vega@test.local',       '1984-09-29', 'Femenino',  'madre', 'San Martín',       321)
+    (45000001, 'Martín',   'González',  '11 6666-0001', 'martin.gonzalez@test.local',  '1978-05-10'::date, 'Masculino', 'padre', 'Av. Siempre Viva', 742),
+    (45000001, 'Paula',    'González',  '11 6666-0002', 'paula.gonzalez@test.local',   '1980-09-14'::date, 'Femenino',  'madre', 'Av. Siempre Viva', 742),
+    (45000002, 'Silvia',   'Fernández', '11 6666-0003', 'silvia.fernandez@test.local', '1982-02-21'::date, 'Femenino',  'madre', 'Calle Falsa',      123),
+    (45000003, 'Andrés',   'Martínez',  '11 6666-0004', 'andres.martinez@test.local',  '1975-11-02'::date, 'Masculino', 'padre', 'Av. Rivadavia',    4500),
+    (45000004, 'Verónica', 'López',     '11 6666-0005', 'veronica.lopez@test.local',   '1983-07-19'::date, 'Femenino',  'madre', 'Belgrano',         890),
+    (45000005, 'Gustavo',  'Pérez',     '11 6666-0006', 'gustavo.perez@test.local',    '1970-01-25'::date, 'Masculino', 'padre', 'San Martín',       321),
+    (45000006, 'Nadia',    'Ramírez',   '11 6666-0007', 'nadia.ramirez@test.local',    '1986-04-08'::date, 'Femenino',  'madre', 'Mitre',            55),
+    (45000007, 'Oscar',    'Torres',    '11 6666-0008', 'oscar.torres@test.local',     '1977-10-30'::date, 'Masculino', 'padre', 'Pueyrredón',       1670),
+    (45000008, 'Marcela',  'Sosa',      '11 6666-0009', 'marcela.sosa@test.local',     '1981-06-12'::date, 'Femenino',  'madre', 'Sarmiento',        940),
+    (45000009, 'Federico', 'Acosta',    '11 6666-0010', 'federico.acosta@test.local',  '1974-08-23'::date, 'Masculino', 'padre', 'Av. Siempre Viva', 742),
+    (45000010, 'Gabriela', 'Benítez',   '11 6666-0011', 'gabriela.benitez@test.local', '1987-12-05'::date, 'Femenino',  'tutor', 'Calle Falsa',      123),
+    (45000011, 'Hernán',   'Medina',    '11 6666-0012', 'hernan.medina@test.local',    '1979-03-17'::date, 'Masculino', 'padre', 'Belgrano',         890),
+    (45000012, 'Julia',    'Vega',      '11 6666-0013', 'julia.vega@test.local',       '1984-09-29'::date, 'Femenino',  'madre', 'San Martín',       321)
 ) AS v(dni_alumno, nombre, apellido, telefono, email, fecha_nacimiento, genero, vinculo, calle, numero)
   ON a.dni = v.dni_alumno;
 

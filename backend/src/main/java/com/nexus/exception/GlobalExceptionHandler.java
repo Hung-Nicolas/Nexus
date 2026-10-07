@@ -57,6 +57,9 @@ public class GlobalExceptionHandler {
             if ("23503".equals(sqlState)) {
                 return ResponseEntity.badRequest().body(error("Violación de restricción referencial"));
             }
+            if ("23514".equals(sqlState)) {
+                return ResponseEntity.badRequest().body(error("Violación de restricción check"));
+            }
             if ("22P02".equals(sqlState)) {
                 return ResponseEntity.badRequest().body(error("Tipo de dato inválido"));
             }

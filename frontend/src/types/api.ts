@@ -67,3 +67,9 @@ export interface ConfigTablaFrontend<T = Record<string, unknown>> {
   renderCard: (row: T) => RenderCardResult;
   relaciones?: Record<string, RelacionConfig>;
 }
+
+export interface CargarCsvResponse {
+  tabla: string;
+  filasProcesadas: number;
+  mensaje: string;
+}

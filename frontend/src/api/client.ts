@@ -1,5 +1,5 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
-import { TokenResponse, BuscarParams, BuscarResponse, OpcionesFiltrosResponse } from '../types/api';
+import { TokenResponse, BuscarParams, BuscarResponse, OpcionesFiltrosResponse, CargarCsvResponse } from '../types/api';
 import { StatsData, UsuarioPerfil, NombreTabla } from '../types/entidades';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api/v1';
@@ -216,4 +216,19 @@ export function descargarArchivo(blob: Blob, filename: string): void {
   link.click();
   link.remove();
   window.URL.revokeObjectURL(url);
+}
+
+export async function apiCargarCsv(
+  tabla: string,
+  archivo: File
+): Promise<CargarCsvResponse> {
+  const formData = new FormData();
+  formData.append('tabla', tabla);
+  formData.append('archivo', archivo);
+
+  const { data } = await apiClient.post<CargarCsvResponse>('/cargar-csv', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    timeout: 120000,
+  });
+  return data;
 }
