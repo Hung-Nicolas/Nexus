@@ -2,13 +2,13 @@ import React, { useState } from 'react';
 import { useAuthStore } from '../stores/useAuthStore';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
-import { Mail, Lock, ShieldAlert } from 'lucide-react';
+import { Mail, Lock, ShieldAlert, Sparkles } from 'lucide-react';
 import nexusLogo from '../assets/Nexus_logo.png';
 
 export const LoginView: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const { iniciarSesion, status, error, limpiarError } = useAuthStore();
+  const { iniciarSesion, iniciarSesionDemo, status, error, limpiarError } = useAuthStore();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -67,6 +67,25 @@ export const LoginView: React.FC = () => {
             isLoading={status === 'loading'}
           >
             Iniciar Sesión
+          </Button>
+
+          <div className="relative my-4 flex items-center justify-center">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-slate-200 dark:border-zinc-800" />
+            </div>
+            <span className="relative bg-white px-2 text-[11px] uppercase tracking-wider text-slate-400 dark:bg-zinc-900 dark:text-zinc-500">
+              o para previsualización
+            </span>
+          </div>
+
+          <Button
+            type="button"
+            variant="outline"
+            onClick={iniciarSesionDemo}
+            className="w-full flex items-center justify-center gap-2 border-brand-200 text-brand-700 hover:bg-brand-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
+          >
+            <Sparkles className="h-4 w-4 text-brand-600 dark:text-brand-400" />
+            <span>Ingresar en Modo Demo (Offline)</span>
           </Button>
         </form>
 

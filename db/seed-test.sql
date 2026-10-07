@@ -198,7 +198,7 @@ ON CONFLICT DO NOTHING;
 
 INSERT INTO public.responsables
     (id_alumno, nombre, apellido, telefono, email, fecha_nacimiento, genero, nacionalidad, vinculo, id_domicilio)
-SELECT a.id, v.nombre, v.apellido, v.telefono, v.email, v.fecha_nacimiento, v.genero, 'Argentina', v.vinculo,
+SELECT a.id, v.nombre, v.apellido, v.telefono, v.email, v.fecha_nacimiento::date, v.genero, 'Argentina', v.vinculo,
        (SELECT id_domicilio FROM public.domicilios WHERE calle = v.calle AND numero = v.numero)
 FROM public.alumnos a
 JOIN (VALUES
