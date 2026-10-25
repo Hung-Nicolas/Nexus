@@ -151,7 +151,7 @@ export const DashboardView: React.FC = () => {
       value: stats?.proyectos || 1,
       icon: <ExternalLink className="h-6 w-6 text-slate-600 dark:text-slate-400" />,
       bgIcon: 'bg-slate-100 dark:bg-zinc-800',
-      link: 'https://hung-nicolas.github.io/GIE/',
+      link: 'http://192.168.1.200:8081/',
     },
   ];
 

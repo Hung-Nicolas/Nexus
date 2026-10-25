@@ -190,7 +190,7 @@ export const Sidebar: React.FC = () => {
               Proyectos Conectados
             </p>
             <a
-              href="https://hung-nicolas.github.io/GIE/"
+              href="http://192.168.1.200:8081/"
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900 dark:text-zinc-400 dark:hover:bg-zinc-900 dark:hover:text-zinc-200 transition-colors"
