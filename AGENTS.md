@@ -6,7 +6,7 @@
 
 ## Resumen del proyecto
 
-**Nexus** es una *Base de Datos Escolar Maestra*: un backend en **Spring Boot (Java 17 + Gradle)** conectado a una base **PostgreSQL local** y un frontend web de búsqueda integrado. Expone datos maestros de alumnos, responsables, personal, cursos y materias. Tanto el frontend de Nexus como los proyectos externos acceden en **solo lectura**; no hay operaciones de escritura desde la interfaz web. Otros proyectos del ecosistema (como GIE — Gestor de Informes Escolares) se conectan a través del **API Gateway** (`POST /api/v1/gateway`) que expone datos de forma controlada mediante API keys independientes, con permisos por tabla (solo lectura) y auditoría en `api_logs`.
+**Nexus** es una *Base de Datos Escolar Maestra*: un backend en **Spring Boot (Java 17 + Gradle)** conectado a una base **PostgreSQL local** y un frontend web de búsqueda integrado. Expone datos maestros de alumnos, responsables, personal, cursos y materias. El frontend permite **lectura** y **alta manual** de registros en las tablas de negocio; los proyectos externos acceden en **solo lectura** a través del **API Gateway** (`POST /api/v1/gateway`) con API keys independientes, permisos por tabla y auditoría en `api_logs`.
 
 El sistema es **cerrado**: solo accede personal autorizado con rol `regente`. No hay registros públicos.
 
@@ -142,6 +142,8 @@ Levanta PostgreSQL + backend (puerto 3000) + Nginx sirviendo `frontend/dist` (pu
 | GET | `/api/v1/buscar/:tabla` | JWT | Búsqueda con `?term=`, `?limite=` y filtros |
 | GET | `/api/v1/registros/:tabla/:campo/:id` | JWT | Detalle de un registro |
 | GET | `/api/v1/tablas/:tabla/opciones-filtros` | JWT | Opciones dinámicas de filtros |
+| GET | `/api/v1/tablas/:tabla/opciones` | JWT | Opciones actuales de FKs (para formularios de alta) |
+| POST | `/api/v1/tablas/:tabla` | JWT | Alta manual de un registro en tabla de negocio |
 | GET | `/api/v1/stats` | JWT | Conteos de las tablas |
 | POST | `/api/v1/gateway` | `x-api-key` | SELECT controlado para proyectos externos |
 
@@ -163,7 +165,7 @@ Levanta PostgreSQL + backend (puerto 3000) + Nginx sirviendo `frontend/dist` (pu
 - **Estado global** en `app.js`: tabla actual, sección actual, filtros, cache de resultados en memoria (TTL 30s), timeout de búsqueda.
 - **Configuración declarativa por tabla** (`configTablas` en `app.js`): cada tabla define título, campos, orden, campos de búsqueda, filtros y función `render` para las cards.
 - **Cliente HTTP** (`lib/api.js`): guarda el access token en memoria y el refresh token en `localStorage` (clave `nexus-refresh-token`). Ante un 401 con refresh token disponible, refresca y reintenta automáticamente (con promesa compartida para evitar refrescos duplicados).
-- **Secciones**: buscador (7 tablas), dashboard (stats) e Info. Modal de detalle de registro.
+- **Secciones**: buscador (7 tablas), dashboard (stats) e Info. Modal de detalle de registro y modal de alta manual con formulario dinámico.
 - Iconos Material Design Icons (clases `mdi mdi-*`).
 
 ### API Gateway
@@ -251,13 +253,13 @@ Tablas permitidas:
 - Las contraseñas de usuarios se almacenan hasheadas con `bcrypt` en `public.usuarios`.
 - Los JWT se firman con `JWT_SECRET`; los refresh tokens se almacenan hasheados en `public.refresh_tokens` y rotan en cada uso.
 - CORS restringido (`CORS_ORIGIN` / `CORS_ORIGIN_PATTERN`); `localhost:5173` siempre permitido para desarrollo.
-- El frontend de Nexus es de **solo lectura**: no expone formularios de alta, edición ni eliminación de registros ni usuarios.
+- El frontend de Nexus permite **alta manual** de registros en las tablas de negocio (alumnos, responsables, personal, cursos, materias, roles, domicilios) mediante un formulario modal. No expone edición ni eliminación de registros ni usuarios. Cualquier usuario autenticado puede dar de alta registros.
 
 ---
 
 ## Notas para agentes AI
 
-- Si necesitás agregar una nueva tabla al buscador, extendé `configTablas` en `frontend/src/app.js` **y** `ConfigTablas.java` en el backend (mantenélos sincronizados), y sumala a `TABLAS_PERMITIDAS_BUSCADOR` / `TABLAS_PERMITIDAS_GATEWAY` según corresponda.
+- Si necesitás agregar una nueva tabla al buscador, extendé `CONFIG_TABLAS` en `frontend/src/config/configTablas.ts` **y** `ConfigTablas.java` en el backend (mantenélos sincronizados), y sumala a `TABLAS_PERMITIDAS_BUSCADOR` / `TABLAS_PERMITIDAS_GATEWAY` según corresponda. Si la tabla admite alta manual, agregá también su metadata en la propiedad `formulario` del frontend.
 - Si agregás una tabla nueva accesible por proyectos externos, actualizá también la documentación en `docs/api-externos.md`.
 - Si modificás `db/schema.sql`, recordá que solo se aplica en el **primer** arranque del contenedor (initdb); para cambios posteriores necesitás migraciones manuales contra la base existente.
 - No asumas que hay React, Vue ni ningún framework en el frontend. Todo es vanilla JS + Tailwind.

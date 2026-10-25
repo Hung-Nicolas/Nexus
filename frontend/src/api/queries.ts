@@ -1,29 +1,24 @@
-import { useQuery, keepPreviousData } from '@tanstack/react-query';
-import { apiBuscar, apiDetalle, apiOpcionesFiltros, apiStats } from './client';
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
+import {
+  apiBuscar,
+  apiDetalle,
+  apiInsertar,
+  apiOpcionesFk,
+  apiOpcionesFiltros,
+  apiStats,
+} from './client';
 import { NombreTabla, StatsData } from '../types/entidades';
-import { BuscarParams, BuscarResponse } from '../types/api';
-import { MOCK_STATS, filtrarMockData } from './mockData';
-import { useAuthStore } from '../stores/useAuthStore';
+import { BuscarParams, BuscarResponse, InsertarResponse, OpcionesFkResponse } from '../types/api';
 
 /**
  * Hook para obtener las estadísticas del Dashboard.
  */
 export function useStatsQuery() {
-  const esModoDemo = useAuthStore((s) => s.esModoDemo);
-
   return useQuery<StatsData>({
-    queryKey: ['stats', esModoDemo],
+    queryKey: ['stats'],
     queryFn: async () => {
-      if (esModoDemo) {
-        return MOCK_STATS;
-      }
-      try {
-        const res = await apiStats();
-        return res.stats;
-      } catch (err) {
-        // Fallback automático en caso de backend apagado
-        return MOCK_STATS;
-      }
+      const res = await apiStats();
+      return res.stats;
     },
     staleTime: 1000 * 60 * 2,
   });
@@ -37,23 +32,10 @@ export function useBuscarQuery<T = Record<string, unknown>>(
   params: BuscarParams,
   enabled: boolean = true
 ) {
-  const esModoDemo = useAuthStore((s) => s.esModoDemo);
-
   return useQuery<BuscarResponse<T>>({
-    queryKey: ['buscar', tabla, params.termino || '', params.filtros || {}, params.limite || 50, esModoDemo],
+    queryKey: ['buscar', tabla, params.termino || '', params.filtros || {}, params.limite || 50],
     queryFn: async () => {
-      if (esModoDemo) {
-        const data = filtrarMockData(tabla, params.termino, params.filtros || {});
-        return { data: data as T[], tabla, total: data.length };
-      }
-      try {
-        const res = await apiBuscar<T>(tabla, params);
-        return res;
-      } catch (err) {
-        // Fallback automático en caso de backend apagado
-        const data = filtrarMockData(tabla, params.termino, params.filtros || {});
-        return { data: data as T[], tabla, total: data.length };
-      }
+      return await apiBuscar<T>(tabla, params);
     },
     enabled,
     placeholderData: keepPreviousData,
@@ -69,23 +51,10 @@ export function useRegistroDetalleQuery<T = Record<string, unknown>>(
   campo: string,
   id: string | number | null | undefined
 ) {
-  const esModoDemo = useAuthStore((s) => s.esModoDemo);
-
   return useQuery<{ data: T }>({
-    queryKey: ['detalle', tabla, campo, id, esModoDemo],
+    queryKey: ['detalle', tabla, campo, id],
     queryFn: async () => {
-      if (esModoDemo) {
-        const all = filtrarMockData(tabla);
-        const item = all.find((r) => String(r[campo]) === String(id)) || all[0];
-        return { data: item as T };
-      }
-      try {
-        return await apiDetalle<T>(tabla, campo, id!);
-      } catch (err) {
-        const all = filtrarMockData(tabla);
-        const item = all.find((r) => String(r[campo]) === String(id)) || all[0];
-        return { data: item as T };
-      }
+      return await apiDetalle<T>(tabla, campo, id!);
     },
     enabled: Boolean(id),
     staleTime: 1000 * 60 * 5,
@@ -96,40 +65,43 @@ export function useRegistroDetalleQuery<T = Record<string, unknown>>(
  * Hook para cargar opciones dinámicas de filtros para una tabla.
  */
 export function useOpcionesFiltrosQuery(tabla: string) {
-  const esModoDemo = useAuthStore((s) => s.esModoDemo);
-
   return useQuery({
-    queryKey: ['filtros-opciones', tabla, esModoDemo],
+    queryKey: ['filtros-opciones', tabla],
     queryFn: async () => {
-      if (esModoDemo) {
-        return {
-          tabla,
-          opciones: {
-            'cursos.turno': ['Mañana', 'Tarde', 'Noche'],
-            'cursos.especialidad': ['Computación', 'Automotores'],
-            'cursos.anio': ['1', '2', '3', '4', '5', '6'],
-            'alumnos.turno': ['Mañana', 'Tarde', 'Noche'],
-            'alumnos.especialidad': ['Computación', 'Automotores'],
-            'alumnos.anio': ['1', '2', '3', '4', '5', '6'],
-          },
-        };
-      }
-      try {
-        return await apiOpcionesFiltros(tabla);
-      } catch {
-        return {
-          tabla,
-          opciones: {
-            'cursos.turno': ['Mañana', 'Tarde', 'Noche'],
-            'cursos.especialidad': ['Computación', 'Automotores'],
-            'cursos.anio': ['1', '2', '3', '4', '5', '6'],
-            'alumnos.turno': ['Mañana', 'Tarde', 'Noche'],
-            'alumnos.especialidad': ['Computación', 'Automotores'],
-            'alumnos.anio': ['1', '2', '3', '4', '5', '6'],
-          },
-        };
-      }
+      return await apiOpcionesFiltros(tabla);
     },
     staleTime: 1000 * 60 * 10,
+  });
+}
+
+/**
+ * Hook para insertar un registro en una tabla de negocio.
+ */
+export function useInsertarMutation<T = Record<string, unknown>>(tabla: NombreTabla) {
+  const queryClient = useQueryClient();
+
+  return useMutation<InsertarResponse<T>, Error, Record<string, unknown>>({
+    mutationFn: async (datos) => {
+      return apiInsertar<T>(tabla, datos);
+    },
+    onSuccess: () => {
+      // Invalidar búsqueda de la tabla y estadísticas para reflejar el nuevo registro
+      queryClient.invalidateQueries({ queryKey: ['buscar', tabla] });
+      queryClient.invalidateQueries({ queryKey: ['stats'] });
+    },
+  });
+}
+
+/**
+ * Hook para cargar opciones de selects de FK para una tabla.
+ */
+export function useOpcionesFkQuery(tabla: NombreTabla, enabled: boolean = true) {
+  return useQuery<OpcionesFkResponse>({
+    queryKey: ['fk-opciones', tabla],
+    queryFn: async () => {
+      return apiOpcionesFk(tabla);
+    },
+    enabled,
+    staleTime: 1000 * 60 * 5,
   });
 }

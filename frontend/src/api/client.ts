@@ -1,5 +1,13 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
-import { TokenResponse, BuscarParams, BuscarResponse, OpcionesFiltrosResponse, CargarCsvResponse } from '../types/api';
+import {
+  TokenResponse,
+  BuscarParams,
+  BuscarResponse,
+  OpcionesFiltrosResponse,
+  CargarCsvResponse,
+  InsertarResponse,
+  OpcionesFkResponse,
+} from '../types/api';
 import { StatsData, UsuarioPerfil, NombreTabla } from '../types/entidades';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api/v1';
@@ -230,5 +238,18 @@ export async function apiCargarCsv(
     headers: { 'Content-Type': 'multipart/form-data' },
     timeout: 120000,
   });
+  return data;
+}
+
+export async function apiInsertar<T = Record<string, unknown>>(
+  tabla: NombreTabla,
+  datos: Record<string, unknown>
+): Promise<InsertarResponse<T>> {
+  const { data } = await apiClient.post<InsertarResponse<T>>(`/tablas/${tabla}`, datos);
+  return data;
+}
+
+export async function apiOpcionesFk(tabla: NombreTabla): Promise<OpcionesFkResponse> {
+  const { data } = await apiClient.get<OpcionesFkResponse>(`/tablas/${tabla}/opciones`);
   return data;
 }
