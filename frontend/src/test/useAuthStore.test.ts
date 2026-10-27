@@ -9,18 +9,7 @@ describe('useAuthStore', () => {
       perfil: null,
       status: 'idle',
       error: null,
-      esModoDemo: false,
     });
-  });
-
-  it('inicia sesion demo correctamente', () => {
-    useAuthStore.getState().iniciarSesionDemo();
-
-    const state = useAuthStore.getState();
-    expect(state.status).toBe('authenticated');
-    expect(state.esModoDemo).toBe(true);
-    expect(state.perfil?.email).toBe('regente@nexus.local');
-    expect(state.perfil?.rol).toBe('regente');
   });
 
   it('inicia sesion regular con éxito vía apiLogin', async () => {
@@ -60,7 +49,10 @@ describe('useAuthStore', () => {
   });
 
   it('cerrarSesion resetea perfil y status', async () => {
-    useAuthStore.getState().iniciarSesionDemo();
+    useAuthStore.setState({
+      perfil: { id: '1', email: 'regente@nexus.local', nombre: 'Admin', apellido: 'Regente', rol: 'regente' },
+      status: 'authenticated',
+    });
     vi.spyOn(apiClient, 'apiLogout').mockResolvedValueOnce();
 
     await useAuthStore.getState().cerrarSesion();
