@@ -2,6 +2,40 @@ import { ConfigTablaFrontend, NombreTabla } from '../types/api';
 import { Alumno, Responsable, Personal, Curso, Materia, Rol, Domicilio } from '../types/entidades';
 import { capitalizar, obtenerIniciales } from '../lib/utils';
 
+const OPCIONES_GENERO = [
+  { label: 'Masculino', value: 'Masculino' },
+  { label: 'Femenino', value: 'Femenino' },
+  { label: 'Otro', value: 'Otro' },
+  { label: 'Prefiero no decir', value: 'Prefiero no decir' },
+];
+
+const OPCIONES_ANIO = [
+  { label: '1°', value: '1' },
+  { label: '2°', value: '2' },
+  { label: '3°', value: '3' },
+  { label: '4°', value: '4' },
+  { label: '5°', value: '5' },
+  { label: '6°', value: '6' },
+];
+
+const OPCIONES_TURNO = [
+  { label: 'Mañana', value: 'Mañana' },
+  { label: 'Tarde', value: 'Tarde' },
+  { label: 'Noche', value: 'Noche' },
+];
+
+const OPCIONES_ESPECIALIDAD = [
+  { label: 'Computación', value: 'Computación' },
+  { label: 'Automotores', value: 'Automotores' },
+];
+
+const OPCIONES_VINCULO = [
+  { label: 'Padre', value: 'padre' },
+  { label: 'Madre', value: 'madre' },
+  { label: 'Tutor', value: 'tutor' },
+  { label: 'Otro', value: 'otro' },
+];
+
 export const CONFIG_TABLAS: Record<NombreTabla, ConfigTablaFrontend<any>> = {
   alumnos: {
     titulo: 'Alumnos',
@@ -48,6 +82,33 @@ export const CONFIG_TABLAS: Record<NombreTabla, ConfigTablaFrontend<any>> = {
           r ? `${r.calle || ''} ${r.numero || ''}${r.departamento ? ' Dpto. ' + r.departamento : ''}` : null,
       },
     },
+    formulario: {
+      campos: [
+        { key: 'dni', label: 'DNI', tipo: 'number', requerido: true, placeholder: '12345678' },
+        { key: 'nombre', label: 'Nombre', tipo: 'text', requerido: true, placeholder: 'Juan' },
+        { key: 'apellido', label: 'Apellido', tipo: 'text', requerido: true, placeholder: 'Pérez' },
+        { key: 'email', label: 'Email', tipo: 'email', requerido: false, placeholder: 'juan.perez@ejemplo.com' },
+        { key: 'email_padre', label: 'Email del padre/tutor', tipo: 'email', requerido: false },
+        { key: 'telefono', label: 'Teléfono', tipo: 'text', requerido: false, placeholder: '11 1234-5678' },
+        { key: 'fecha_nacimiento', label: 'Fecha de nacimiento', tipo: 'date', requerido: false },
+        { key: 'genero', label: 'Género', tipo: 'select', requerido: false, opciones: OPCIONES_GENERO },
+        { key: 'nacionalidad', label: 'Nacionalidad', tipo: 'text', requerido: false, placeholder: 'Argentina' },
+        {
+          key: 'id_curso',
+          label: 'Curso',
+          tipo: 'select',
+          requerido: true,
+          fk: { tabla: 'cursos', pk: 'id_curso', camposLabel: ['anio', 'division', 'turno'] },
+        },
+        {
+          key: 'id_domicilio',
+          label: 'Domicilio',
+          tipo: 'select',
+          requerido: false,
+          fk: { tabla: 'domicilios', pk: 'id_domicilio', camposLabel: ['calle', 'numero', 'localidad'] },
+        },
+      ],
+    },
   },
 
   responsables: {
@@ -85,6 +146,32 @@ export const CONFIG_TABLAS: Record<NombreTabla, ConfigTablaFrontend<any>> = {
           r ? `${r.calle || ''} ${r.numero || ''}${r.departamento ? ' Dpto. ' + r.departamento : ''}` : null,
       },
     },
+    formulario: {
+      campos: [
+        {
+          key: 'id_alumno',
+          label: 'Alumno a cargo',
+          tipo: 'select',
+          requerido: true,
+          fk: { tabla: 'alumnos', pk: 'id', camposLabel: ['apellido', 'nombre', 'dni'] },
+        },
+        { key: 'nombre', label: 'Nombre', tipo: 'text', requerido: true },
+        { key: 'apellido', label: 'Apellido', tipo: 'text', requerido: true },
+        { key: 'telefono', label: 'Teléfono', tipo: 'text', requerido: false },
+        { key: 'email', label: 'Email', tipo: 'email', requerido: false },
+        { key: 'fecha_nacimiento', label: 'Fecha de nacimiento', tipo: 'date', requerido: false },
+        { key: 'genero', label: 'Género', tipo: 'select', requerido: false, opciones: OPCIONES_GENERO },
+        { key: 'nacionalidad', label: 'Nacionalidad', tipo: 'text', requerido: false },
+        { key: 'vinculo', label: 'Vínculo', tipo: 'select', requerido: true, opciones: OPCIONES_VINCULO },
+        {
+          key: 'id_domicilio',
+          label: 'Domicilio',
+          tipo: 'select',
+          requerido: false,
+          fk: { tabla: 'domicilios', pk: 'id_domicilio', camposLabel: ['calle', 'numero', 'localidad'] },
+        },
+      ],
+    },
   },
 
   personal: {
@@ -109,6 +196,25 @@ export const CONFIG_TABLAS: Record<NombreTabla, ConfigTablaFrontend<any>> = {
           r ? `${r.calle || ''} ${r.numero || ''}${r.departamento ? ' Dpto. ' + r.departamento : ''}` : null,
       },
     },
+    formulario: {
+      campos: [
+        { key: 'dni', label: 'DNI', tipo: 'number', requerido: true },
+        { key: 'nombre', label: 'Nombre', tipo: 'text', requerido: true },
+        { key: 'apellido', label: 'Apellido', tipo: 'text', requerido: true },
+        { key: 'email', label: 'Email', tipo: 'email', requerido: true },
+        { key: 'telefono', label: 'Teléfono', tipo: 'text', requerido: false },
+        { key: 'fecha_nacimiento', label: 'Fecha de nacimiento', tipo: 'date', requerido: false },
+        { key: 'genero', label: 'Género', tipo: 'select', requerido: false, opciones: OPCIONES_GENERO },
+        { key: 'nacionalidad', label: 'Nacionalidad', tipo: 'text', requerido: false },
+        {
+          key: 'id_domicilio',
+          label: 'Domicilio',
+          tipo: 'select',
+          requerido: false,
+          fk: { tabla: 'domicilios', pk: 'id_domicilio', camposLabel: ['calle', 'numero', 'localidad'] },
+        },
+      ],
+    },
   },
 
   cursos: {
@@ -127,6 +233,14 @@ export const CONFIG_TABLAS: Record<NombreTabla, ConfigTablaFrontend<any>> = {
       meta: [row.especialidad].filter(Boolean) as string[],
       tags: row.especialidad ? [{ text: row.especialidad, variant: 'purple' }] : [],
     }),
+    formulario: {
+      campos: [
+        { key: 'anio', label: 'Año', tipo: 'select', requerido: true, opciones: OPCIONES_ANIO },
+        { key: 'division', label: 'División', tipo: 'text', requerido: true, placeholder: 'A' },
+        { key: 'turno', label: 'Turno', tipo: 'select', requerido: true, opciones: OPCIONES_TURNO },
+        { key: 'especialidad', label: 'Especialidad', tipo: 'select', requerido: false, opciones: OPCIONES_ESPECIALIDAD },
+      ],
+    },
   },
 
   materias: {
@@ -142,6 +256,12 @@ export const CONFIG_TABLAS: Record<NombreTabla, ConfigTablaFrontend<any>> = {
       meta: [row.descripcion].filter(Boolean) as string[],
       tags: [],
     }),
+    formulario: {
+      campos: [
+        { key: 'nombre', label: 'Nombre de la materia', tipo: 'text', requerido: true },
+        { key: 'descripcion', label: 'Descripción', tipo: 'textarea', requerido: false },
+      ],
+    },
   },
 
   roles: {
@@ -157,6 +277,12 @@ export const CONFIG_TABLAS: Record<NombreTabla, ConfigTablaFrontend<any>> = {
       meta: [row.descripcion].filter(Boolean) as string[],
       tags: [],
     }),
+    formulario: {
+      campos: [
+        { key: 'nombre', label: 'Nombre del rol', tipo: 'text', requerido: true },
+        { key: 'descripcion', label: 'Descripción', tipo: 'textarea', requerido: false },
+      ],
+    },
   },
 
   domicilios: {
@@ -172,5 +298,13 @@ export const CONFIG_TABLAS: Record<NombreTabla, ConfigTablaFrontend<any>> = {
       meta: [row.localidad].filter(Boolean) as string[],
       tags: [],
     }),
+    formulario: {
+      campos: [
+        { key: 'calle', label: 'Calle', tipo: 'text', requerido: true },
+        { key: 'numero', label: 'Número', tipo: 'number', requerido: true },
+        { key: 'departamento', label: 'Departamento', tipo: 'text', requerido: false },
+        { key: 'localidad', label: 'Localidad', tipo: 'text', requerido: true },
+      ],
+    },
   },
 };

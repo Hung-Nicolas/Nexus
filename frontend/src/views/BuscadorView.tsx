@@ -9,7 +9,8 @@ import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
-import { Search, X, RotateCcw, Copy, Check } from 'lucide-react';
+import { ModalInsertar } from '../components/modals/ModalInsertar';
+import { Search, X, RotateCcw, Copy, Check, Plus } from 'lucide-react';
 import { ColumnDef } from '@tanstack/react-table';
 import { capitalizar } from '../lib/utils';
 
@@ -27,6 +28,7 @@ export const BuscadorView: React.FC = () => {
 
   const [debouncedTerm, setDebouncedTerm] = useState(terminoBusqueda);
   const [copiado, setCopiado] = useState(false);
+  const [modalInsertarAbierto, setModalInsertarAbierto] = useState(false);
 
   // Debounce de búsqueda de 250ms
   useEffect(() => {
@@ -350,7 +352,17 @@ export const BuscadorView: React.FC = () => {
             </span>
           )}
         </div>
+        <Button size="sm" onClick={() => setModalInsertarAbierto(true)}>
+          <Plus className="h-3.5 w-3.5" />
+          <span>Agregar</span>
+        </Button>
       </div>
+
+      <ModalInsertar
+        tabla={tablaActual}
+        isOpen={modalInsertarAbierto}
+        onClose={() => setModalInsertarAbierto(false)}
+      />
 
       {/* Renderizado de Vista Híbrida (Tabla o Cards) */}
       {modoVista === 'table' ? (

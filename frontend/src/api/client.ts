@@ -1,5 +1,13 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
-import { TokenResponse, BuscarParams, BuscarResponse, OpcionesFiltrosResponse } from '../types/api';
+import {
+  TokenResponse,
+  BuscarParams,
+  BuscarResponse,
+  OpcionesFiltrosResponse,
+  CargarCsvResponse,
+  InsertarResponse,
+  OpcionesFkResponse,
+} from '../types/api';
 import { StatsData, UsuarioPerfil, NombreTabla } from '../types/entidades';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api/v1';
@@ -186,5 +194,62 @@ export async function apiDetalle<T = Record<string, unknown>>(
 
 export async function apiOpcionesFiltros(tabla: string): Promise<OpcionesFiltrosResponse> {
   const { data } = await apiClient.get<OpcionesFiltrosResponse>(`/tablas/${tabla}/opciones-filtros`);
+  return data;
+}
+
+export async function apiExportarTodo(): Promise<{ blob: Blob; filename: string }> {
+  const response = await apiClient.get('/exportar', {
+    responseType: 'blob',
+    timeout: 60000,
+  });
+
+  const disposition = response.headers['content-disposition'] as string | undefined;
+  const filename = extraerNombreArchivo(disposition) || 'nexus-export.zip';
+
+  return { blob: response.data as Blob, filename };
+}
+
+function extraerNombreArchivo(disposition?: string): string | null {
+  if (!disposition) return null;
+  const match = disposition.match(/filename="?([^"]+)"?/);
+  return match?.[1] ?? null;
+}
+
+export function descargarArchivo(blob: Blob, filename: string): void {
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(url);
+}
+
+export async function apiCargarCsv(
+  tabla: string,
+  archivo: File
+): Promise<CargarCsvResponse> {
+  const formData = new FormData();
+  formData.append('tabla', tabla);
+  formData.append('archivo', archivo);
+
+  const { data } = await apiClient.post<CargarCsvResponse>('/cargar-csv', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    timeout: 120000,
+  });
+  return data;
+}
+
+export async function apiInsertar<T = Record<string, unknown>>(
+  tabla: NombreTabla,
+  datos: Record<string, unknown>
+): Promise<InsertarResponse<T>> {
+  const { data } = await apiClient.post<InsertarResponse<T>>(`/tablas/${tabla}`, datos);
+  return data;
+}
+
+export async function apiOpcionesFk(tabla: NombreTabla): Promise<OpcionesFkResponse> {
+  const { data } = await apiClient.get<OpcionesFkResponse>(`/tablas/${tabla}/opciones`);
   return data;
 }

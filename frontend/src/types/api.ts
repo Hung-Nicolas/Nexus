@@ -66,4 +66,46 @@ export interface ConfigTablaFrontend<T = Record<string, unknown>> {
   placeholder: string;
   renderCard: (row: T) => RenderCardResult;
   relaciones?: Record<string, RelacionConfig>;
+  formulario: ConfigFormulario;
+}
+
+export interface ConfigFormulario {
+  campos: CampoFormularioConfig[];
+}
+
+export type TipoCampoFormulario = 'text' | 'number' | 'date' | 'email' | 'select' | 'textarea';
+
+export interface CampoFormularioConfig {
+  key: string;
+  label: string;
+  tipo: TipoCampoFormulario;
+  requerido: boolean;
+  opciones?: { label: string; value: string }[];
+  fk?: FkFormularioConfig;
+  placeholder?: string;
+}
+
+export interface FkFormularioConfig {
+  tabla: NombreTabla;
+  pk: string;
+  camposLabel: string[];
+}
+
+export interface OpcionesFkResponse {
+  opciones: Record<string, OpcionFk[]>;
+}
+
+export interface OpcionFk {
+  value: string | number;
+  label: string;
+}
+
+export interface InsertarResponse<T = Record<string, unknown>> {
+  data: T;
+}
+
+export interface CargarCsvResponse {
+  tabla: string;
+  filasProcesadas: number;
+  mensaje: string;
 }
