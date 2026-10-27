@@ -20,6 +20,7 @@ dist-ssr
 # Backend Java
 backend/build/
 backend/.gradle/
+backend/.gradle-user/
 backend/*.jar
 !backend/gradle/wrapper/gradle-wrapper.jar
 

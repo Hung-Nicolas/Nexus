@@ -1,6 +1,6 @@
 package com.nexus.dto;
 
-import java.util.LinkedHashMap;
+import java.util.Map;
 
 /**
  * Body del gateway: {"tabla", "datos": {"campos", "filtros", "orden", "limite", "offset"}}.
@@ -12,7 +12,7 @@ public record GatewayRequest(
 
     public record DatosGateway(
             String campos,
-            LinkedHashMap<String, Object> filtros,
+            Map<String, Object> filtros,
             OrdenGateway orden,
             Integer limite,
             Integer offset) {}
