@@ -11,6 +11,7 @@ services:
       - nexus-postgres-data:/var/lib/postgresql/data
       - ./db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
       - ./db/register-gie.sql:/docker-entrypoint-initdb.d/02-register-gie.sql:ro
+      - ./db/register-avisos.sql:/docker-entrypoint-initdb.d/03-register-avisos.sql:ro
     ports:
       - "127.0.0.1:5432:5432"
     healthcheck:
